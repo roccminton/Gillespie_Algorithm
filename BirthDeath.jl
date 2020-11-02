@@ -11,20 +11,28 @@ Exported functions are
 """
 module BirthDeath
 
-export Parameter, PopulationState, execute, rates
+using Parameters
+
+export Parameter, ModelConfiguration, PopulationState,
+    execute,
+    LogisticRates, YuleRates, LinearRates, ImmigrationRates
 
 """
     struct Parameter
 
 Compilation of immutable parameters for the whole runtime of the simulation.
 """
-struct Parameter
+@with_kw struct Parameter
     "birth rate"
-    b :: Float64
+    birth :: Float64 = 0.0
     "death rate"
-    d :: Float64
+    death :: Float64 = 0.0
     "competition preassure"
-    c :: Float64
+    competition :: Float64 = 0.0
+    "carrying capacity"
+    K :: Int64 = 1
+    "immigration rate"
+    migration :: Float64 = 0.0
 end
 
 """
@@ -40,47 +48,116 @@ struct PopulationState
 end
 
 """
-    rates(ps::pop_state,pr::par)
+    struc ModelConfiguration
 
-Return an array consisting of [birth,death] rates.
+Declares configurations of the model that unlike the model parameters don't have
+to be passed to the rates function, but setup the model initially.
 """
-function rates(ps::PopulationState,pr::Parameter) :: Vector{Float64}
+struct ModelConfiguration
+    name :: AbstractString
+    rates :: Function
+    execute :: Function
+end
+
+"""
+    ModelConfiguration(name::AbstractString; <keywords argument>)
+
+Outer Constructor for the ModelConfiguration struc. Determines the rates and execute
+Function from the name. Known model names are:
+    Yule, Linear, Logistic, Immigration
+Additionally a boolean keyword argument 'rescaled' can be handed in. If true the
+`resc_execute` function is choosen, otherwise the `abs_executes`.
+"""
+function ModelConfiguration(name::AbstractString,execute::Function)
+    if name == "Yule"
+        return ModelConfiguration(name,YuleRates,execute)
+    elseif name == "Linear"
+        return ModelConfiguration(name,LinearRates,execute)
+    elseif name == "Logistic"
+        return ModelConfiguration(name,LogisticRates,execute)
+    elseif name == "Immigration"
+        return ModelConfiguration(name,ImmigrationRates,execute)
+    else
+        error("Unknown model name: $name")
+    end
+end
+
+function ModelConfiguration(name::AbstractString; rescaled::Bool=false)
+    if rescaled
+        ModelConfiguration(name,execute_resc)
+    else
+        ModelConfiguration(name,execute_abs)
+    end
+end
+
+"""
+    LogisticRates(ps::pop_state,pr::par)
+
+Return an array consisting of Logistic [birth,death] rates.
+"""
+function LogisticRates(ps::PopulationState,pr::Parameter) :: Vector{Float64}
     n = ps.size
-    return [n*pr.b,n*pr.d+n*(n-1)*pr.c]
+    return [n*pr.birth,n*pr.death+n*(n-1)*pr.competition]
 end
 """
-    birth(ps::pop_state)
+    YuleRates(ps::pop_state,pr::par)
 
-Return a new pop_state instance with an increased population size by one
-individuum.
+Return an array consisting of Yule [birth,death] rates.
 """
-function birth(ps::PopulationState)::PopulationState
-    return PopulationState(ps.size + 1)
+function YuleRates(ps::PopulationState,pr::Parameter) :: Vector{Float64}
+    return [ps.size*pr.birth,0]
+end
+"""
+    LinearRates(ps::pop_state,pr::par)
+
+Return an array consisting of Linear [birth,death] rates.
+"""
+function LinearRates(ps::PopulationState,pr::Parameter) :: Vector{Float64}
+    n = ps.size
+    return [n*pr.birth,n*pr.death]
+end
+"""
+    ImmigrationRates(ps::pop_state,pr::par)
+
+Return an array consisting of Linear [birth,death] rates with immigration.
+"""
+function ImmigrationRates(ps::PopulationState,pr::Parameter) :: Vector{Float64}
+    n = ps.size
+    return [n*pr.birth + pr.immigration,n*pr.death]
 end
 
 """
-    death(ps::pop_state)
+    execute_abs(i::Int64,ps::pop_state)
 
-Return a new pop_state instance with an decreased population size by one
-individuum.
+Executes the event that was choosen by the handed in integer 'i'.
+Event 1 executes a birth event by adding one individuum to the population state size.
+Event 2 executes a death event by decreasing the population state size by one.
 """
-function death(ps::PopulationState)::PopulationState
-    return PopulationState(ps.size - 1)
-end
-"""
-    execute(i::Int64,ps::pop_state)
-
-Collects all defined events for this model in the same order as the rates vector.
-"""
-function execute(i::Int64,ps::PopulationState)::PopulationState
+function execute_abs(i::Int64,ps::PopulationState)::PopulationState
     if i==1
-        birth(ps)
+        return PopulationState(ps.size + 1)
     elseif i==2
-        death(ps)
+        return PopulationState(ps.size - 1)
     else
         error("Index Error: No event #$i")
     end
 end
 
+"""
+    execute_resc(i::Int64,ps::pop_state)
+
+Executes the event that was choosen by the handed in integer 'i'.
+Event 1 executes a birth event by adding one individuum to the population state size.
+Event 2 executes a death event by decreasing the population state size by one.
+"""
+function execute_resc(i::Int64,ps::PopulationState,pr::Parameter)::PopulationState
+    if i==1
+        return PopulationState(ps.size + 1/pr.K)
+    elseif i==2
+        return PopulationState(ps.size - 1/pr.K)
+    else
+        error("Index Error: No event #$i")
+    end
+end
 
 end

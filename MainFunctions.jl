@@ -1,5 +1,6 @@
 using Random
 using Distributions
+using ProgressMeter
 """
         run_gillespie(time::UnitRange{Int64},n₀::PopulationState,par::Parameter)
 
@@ -9,6 +10,7 @@ function run_gillespie(
     time::AbstractVector,
     n₀::PopulationState,
     par::Parameter,
+    conf::ModelConfiguration
     )
 
     #Setup
@@ -17,9 +19,9 @@ function run_gillespie(
     population_history = Vector{PopulationState}(undef,length(time))
 
     #run simulation
-    for (index,step) in enumerate(time)
+    @showprogress for (index,step) in enumerate(time)
         while current_time ≤ step
-            r = rates(current_population,par)
+            r = conf.rates(current_population,par)
             total_rate = sum(r)
             #Population in absorbing state if sum of rates is zero
             if total_rate > 0
@@ -30,7 +32,7 @@ function run_gillespie(
                 #choose event
                 i = choose_event(r,total_rate)
                 if i > 0
-                    current_population = execute(i,current_population)
+                    current_population = conf.execute(i,current_population)
                 else
                     break
                 end
