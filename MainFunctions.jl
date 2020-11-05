@@ -17,36 +17,58 @@ function run_gillespie(
     )
 
     #Setup
-    current_time = time[1]
+    current_time = convert(Float64,time[1])
     current_population = n₀
-    population_history = Vector{typeof(n₀)}(undef,length(time))
+    population_history = Vector{PopulationState}(undef,length(time))
 
     #run simulation
-    @showprogress for (index,step) in enumerate(time)
-        while current_time ≤ step
-            r = conf.rates(current_population,par)
-            total_rate = sum(r)
-            #Population in absorbing state if sum of rates is zero
-            if total_rate > 0
-                #sample next event time
-                dt = rand(Exponential(1 / (total_rate)))
-                #update time
-                current_time += dt
-                #choose event
-                i = choose_event(r,total_rate)
-                if i > 0
-                    current_population = conf.execute(i,current_population,par)
-                else
-                    break
-                end
-            else
-                break
-            end
-        end
-        #safe population status
-        population_history[index] = current_population
+    return run_body(
+        time,
+        current_time,
+        current_population,
+        population_history,
+        par,
+        conf
+        )
+end
+
+function run_body(time::UnitRange{Int64},
+    t_0::Float64,
+    n_0::PopulationState,
+    history::Vector{PopulationState},
+    par::Parameter,
+    conf::ModelConfiguration
+    )
+    @showprogress for(index,step) in enumerate(time)
+        t_0, n_0 = one_step(t_0,step,n_0,par,conf)
+        history[index] = n_0
+        step-t_0 > 0 && break
     end
-    return population_history
+    return history
+end
+
+function one_step(
+    t_0 :: Float64,
+    t_end :: Int64,
+    x_0 :: PopulationState,
+    par :: Parameter,
+    conf :: ModelConfiguration
+    )
+    while t_0 ≤ t_end
+        r = conf.rates(x_0,par)
+        total_rate = sum(r)
+        #Population in absorbing state if sum of rates is zero
+        iszero(total_rate) && break
+        #sample next event time
+        dt = rand(Exponential(1 / (total_rate)))
+        #update time
+        t_0 += dt
+        #choose event
+        i = choose_event(r,total_rate)
+        #execute event
+        x_0 = conf.execute(i,x_0,par)
+    end
+    return t_0, x_0
 end
 
 """
@@ -58,36 +80,13 @@ The value 0 is returned if the total rates are positive, but too smale to let
 the evolution continue. The maximum number of tries is set by `max_try=1000`.
 """
 function choose_event(rates::Vector{Float64},total_rate::Float64;max_try::Int64=1000)::Int64
-    #setup a uniform random variable in (0,1)
-    rndm = rand()
     #make it a uniform random variable in (0,total_rate)
-    if total_rate ≥ 1
-        #or by multiplying with the total_rate if its greater than 1
-        rndm = rndm*total_rate
-    else
-        #or by rejecting samples if they are to big
-        #set the maximum numbers of trys to 1000
-        #otherwise stop the evolution
-        broke = false
-        for _ in 1:max_try
-            if rndm < total_rate
-                broke = true
-                break
-            else
-                rndm = rand()
-            end
-        end
-        if broke == false
-            return 0
-        end
-    end
+    rndm = rand(Uniform(0.0,total_rate))
+    #choose the rate at random
     for (index, rate) in enumerate(rates)
         rndm -= rate
-        if rndm ≤ 0
-            return index
-        end
+        rndm ≤ 0.0 && return index
     end
-
 end
 
 """
