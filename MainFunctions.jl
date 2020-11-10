@@ -1,6 +1,7 @@
 using Random
 using Distributions
 using ProgressMeter
+
 """
         run_gillespie(time::AbstractVector,n₀::PopulationState,par::Parameter)
 
@@ -17,73 +18,92 @@ function run_gillespie(
     )
 
     #Setup
-    current_time = convert(Float64,time[1])
-    current_population = n₀
-    population_history = Vector{PopulationState}(undef,length(time))
+    ct = convert(Float64,time[1]) #current time
+    population_history = Vector{PopulationStatistic}(undef,length(time))
+    rates = Vector{Float64}(undef,2)
+    ex! = conf.execute!
+    r! = conf.rates!
 
     #run simulation
-    return run_body(
-        time,
-        current_time,
-        current_population,
-        population_history,
-        par,
-        conf
-        )
-end
-
-function run_body(time::UnitRange{Int64},
-    t_0::Float64,
-    n_0::PopulationState,
-    history::Vector{PopulationState},
-    par::Parameter,
-    conf::ModelConfiguration
-    )
-    @showprogress for(index,step) in enumerate(time)
-        t_0, n_0 = one_step(t_0,step,n_0,par,conf)
-        history[index] = n_0
-        step-t_0 > 0 && break
+    @showprogress for (index,step) in enumerate(time)
+        ct = onestep!(n₀,rates,ct,step,par,ex!,r!)
+        #save one step evolution
+        @inbounds population_history[index] = PopulationStatistic(n₀)
+        #check if step was completed or evolution stopped inbetween
+        @fastmath step-ct > 0.0 && break
     end
-    return history
-end
-
-function one_step(
-    t_0 :: Float64,
-    t_end :: Int64,
-    x_0 :: PopulationState,
-    par :: Parameter,
-    conf :: ModelConfiguration
-    )
-    while t_0 ≤ t_end
-        r = conf.rates(x_0,par)
-        total_rate = sum(r)
-        #Population in absorbing state if sum of rates is zero
-        iszero(total_rate) && break
-        #sample next event time
-        dt = rand(Exponential(1 / (total_rate)))
-        #update time
-        t_0 += dt
-        #choose event
-        i = choose_event(r,total_rate)
-        #execute event
-        x_0 = conf.execute(i,x_0,par)
-    end
-    return t_0, x_0
+    return population_history
 end
 
 """
-    choose_event(rates::Vector{Float64},total_rate::Float64;<keyword arguments>)
+    onestep!(
+        t_0 :: Float64,
+        t_end :: Int64,
+        x_0 :: PopulationState,
+        rates :: Vector{Float64},
+        par :: Parameter,
+        execute! :: Function,
+        rates! :: Function
+        )
+
+Executes one step of the evolution by modifying `x_0` and `rates`.
+"""
+function onestep!(
+    x_0 :: PopulationState,
+    rates :: Vector{Float64},
+    t_0 :: Float64,
+    t_end :: Int64,
+    par :: Parameter,
+    execute! :: Function,
+    rates! :: Function
+    )
+
+    while t_0 ≤ t_end
+        rates!(rates,x_0,par)
+        #choose next event and event time
+        i, dt = nexteventandtime(rates)
+        #Population in absorbing state
+        iszero(i) && break
+        #update time
+        t_0 += dt
+        #execute event
+        execute!(i,x_0,par)
+    end
+    return t_0
+end
+
+"""
+    nexteventandtime(rates::Vector{Float64})
+
+Samples a exponential distributed random variable to determine the time for the next
+event and calls `choose_event`. The return value is a tuple consiting of the
+envent index returned by `choose_event` and the time to the next event.
+"""
+function nexteventandtime(rates::Vector{Float64})
+    #calculate total event rate
+    @fastmath total_rate = sum(rates)
+    #Population in absorbing state if sum of rates is zero
+    iszero(total_rate) && return 0, 0.0
+    #sample next event time
+    dt = rand(Exponential(1 / (total_rate)))
+    #choose event
+    i = chooseevent(rates,total_rate)
+    return i, dt
+end
+
+"""
+    chooseevent(rates::Vector{Float64},total_rate::Float64;<keyword arguments>)
 
 From the vector of total rates choose at random one of the indices of the vector
 according to their rates.
 The value 0 is returned if the total rates are positive, but too smale to let
 the evolution continue. The maximum number of tries is set by `max_try=1000`.
 """
-function choose_event(rates::Vector{Float64},total_rate::Float64;max_try::Int64=1000)::Int64
+function chooseevent(rates::Vector{Float64},total_rate::Float64)::Int64
     #make it a uniform random variable in (0,total_rate)
     rndm = rand(Uniform(0.0,total_rate))
     #choose the rate at random
-    for (index, rate) in enumerate(rates)
+    @inbounds for (index, rate) in enumerate(rates)
         rndm -= rate
         rndm ≤ 0.0 && return index
     end

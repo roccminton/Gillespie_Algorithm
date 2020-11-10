@@ -6,29 +6,21 @@ include("MainFunctions.jl")
 #Setup Model parameters
 b = 1.0
 d = 0.9
-K = 10
-c = (b-d)/(10^3)
-t = [0:50,50:200]
+K = 100.0
+c = 10^(-5)
+t = 0:150
 n_0 = PopulationState(10.0)
-model_parameter = [
-    Parameter(
+model_parameter = Parameter(
         birth = b,
         death = d,
-        competition = (b-d)/500,
-        K = K
-        ),
-    Parameter(
-        birth = b,
-        death = d,
-        competition = (b-d)/1000,
+        competition = c,
         K = K
         )
-        ]
-config = fill(ModelConfiguration("Logistic",rescaled=true),2)
+config = ModelConfiguration("Logistic",rescaled=true)
 
 #execute the simulation
 history = run_gillespie(t,n_0,model_parameter,config)
 
 using Plots
 
-plot(vcat(t...),[ps.size for ps in history])
+plot(t,[ps.size for ps in history])
