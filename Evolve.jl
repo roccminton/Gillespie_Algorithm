@@ -2,6 +2,7 @@ include("BirthDeath.jl")
 using .BirthDeath
 
 include("MainFunctions.jl")
+using .Gillespie
 
 #Setup Model parameters
 b = 1.0
