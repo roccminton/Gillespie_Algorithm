@@ -4,7 +4,17 @@ using Random
 using Distributions
 using ProgressMeter
 
-export run_gillespie
+"""
+    struc ModelConfiguration
+
+Declares configurations of the model that unlike the model parameters don't have
+to be passed to the rates function, but setup the model initially.
+"""
+struct ModelConfiguration
+    name :: AbstractString
+    rates! :: Function
+    execute! :: Function
+end
 
 """
         run_gillespie(time::AbstractVector,n₀,par::Parameter)

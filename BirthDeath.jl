@@ -1,4 +1,4 @@
-"""
+#=
     module BirthDeath
 
 Defines all critical functions and types for a simple birth death process. Exported
@@ -10,7 +10,11 @@ types are
 Exported functions are
     Rates -> functions that return an array of rates for different events
     Execute ->  functions that execute the event (e.g. birth, death)
-"""
+=#
+
+include("MainFunctions.jl")
+import .Gillespie: ModelConfiguration
+
 module BirthDeath
 
 using Parameters #for macro @with_kw
@@ -19,18 +23,6 @@ export ModelConfiguration,
     execute_abs!, execute_resc!,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
     LogisticAccRates, YuleAccRates, LinearAccRates, ImmigrationAccRates
-
-"""
-    struc ModelConfiguration
-
-Declares configurations of the model that unlike the model parameters don't have
-to be passed to the rates function, but setup the model initially.
-"""
-struct ModelConfiguration
-    name :: AbstractString
-    rates! :: Function
-    execute! :: Function
-end
 
 """
     ModelConfiguration(name::AbstractString; <keywords argument>)
