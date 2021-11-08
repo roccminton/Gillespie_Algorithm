@@ -1,36 +1,47 @@
+module Gillespie
+
 using Random
 using Distributions
 using ProgressMeter
 
+export run_gillespie
+
 """
-        run_gillespie(time::AbstractVector,n₀::PopulationState,par::Parameter)
+        run_gillespie(time::AbstractVector,n₀,par::Parameter)
 
 Run a exact stochastic simulation over the Interval time with an initial Population
 `n₀`, Parameter Set `par` and Model Configuration `conf`. The output of the function
 is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
-function run_gillespie(
-    time::UnitRange{Int64},
-    n₀::PopulationState,
-    par::Parameter,
-    conf::ModelConfiguration
-    )
-
+function run_gillespie(time,n₀,par,conf)
     #Setup
     ct = convert(Float64,time[1]) #current time
-    population_history = Vector{PopulationStatistic}(undef,length(time))
+    population_history = Vector{typeof(n₀)}(undef,length(time))
     rates = Vector{Float64}(undef,2)
     ex! = conf.execute!
     r! = conf.rates!
 
-    #run simulation
-    @showprogress for (index,step) in enumerate(time)
-        ct = onestep!(n₀,rates,ct,step,par,ex!,r!)
-        #save one step evolution
-        @inbounds population_history[index] = PopulationStatistic(n₀)
-        #check if step was completed or evolution stopped inbetween
-        @fastmath step-ct > 0.0 && break
+    if typeof(n₀).mutable
+        #run simulation
+        @showprogress for (index,step) in enumerate(time)
+            #save one step evolution
+            @inbounds population_history[index] = copy(n₀)
+            #execute one step of the simulation
+            ct = onestep_mutable!(n₀,rates,ct,step,par,ex!,r!)
+            #check if step was completed or evolution stopped inbetween
+            @fastmath step-ct > 0.0 && break
+        end
+    else
+        #run simulation
+        @showprogress for (index,step) in enumerate(time)
+            #save one step evolution
+            @inbounds population_history[index] = n₀
+            #execute one step of the simulation
+            ct, n₀ = onestep_immutable!(n₀,rates,ct,step,par,ex!,r!)
+            #check if step was completed or evolution stopped inbetween
+            @fastmath step-ct > 0.0 && break
+        end
     end
     return population_history
 end
@@ -48,12 +59,12 @@ end
 
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
-function onestep!(
-    x_0 :: PopulationState,
+function onestep_mutable!(
+    x_0 ,
     rates :: Vector{Float64},
     t_0 :: Float64,
     t_end :: Int64,
-    par :: Parameter,
+    par,
     execute! :: Function,
     rates! :: Function
     )
@@ -70,6 +81,30 @@ function onestep!(
         execute!(i,x_0,par)
     end
     return t_0
+end
+
+function onestep_immutable!(
+    x_0 ,
+    rates,
+    t_0,
+    t_end,
+    par,
+    execute!,
+    rates!
+    )
+
+    while t_0 ≤ t_end
+        rates!(rates,x_0,par)
+        #choose next event and event time
+        i, dt = nexteventandtime(rates)
+        #Population in absorbing state
+        iszero(i) && break
+        #update time
+        t_0 += dt
+        #execute event
+        x_0 = execute!(i,x_0,par)
+    end
+    return t_0, x_0
 end
 
 """
@@ -120,9 +155,9 @@ is one long population history of all the runs concatenated together.
 """
 function run_gillespie(
     times::Vector{UnitRange{Int64}},
-    n₀::PopulationState,
-    pars::Vector{Parameter},
-    confs::Vector{ModelConfiguration}
+    n₀,
+    pars,
+    confs
     )
 
     #Check if all Vector have the same length
@@ -158,7 +193,9 @@ Configuration should be used for all time intervals.
 """
 run_gillespie(
     times::Vector{UnitRange{Int64}},
-    n₀::PopulationState,
-    pars::Vector{Parameter},
-    conf::ModelConfiguration
+    n₀,
+    pars,
+    conf
     ) = run_gillespie(times,n₀,pars,fill(conf,length(times)))
+
+end

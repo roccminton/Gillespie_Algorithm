@@ -15,50 +15,10 @@ module BirthDeath
 
 using Parameters #for macro @with_kw
 
-export Parameter, ModelConfiguration, PopulationState, PopulationStatistic,
-    generate_statistic,
+export ModelConfiguration,
     execute_abs!, execute_resc!,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
     LogisticAccRates, YuleAccRates, LinearAccRates, ImmigrationAccRates
-
-"""
-    struct Parameter
-
-Compilation of immutable parameters for the whole runtime of the simulation.
-"""
-@with_kw struct Parameter{T<:AbstractFloat}
-    "birth rate"
-    birth :: T = 0.0
-    "death rate"
-    death :: T = 0.0
-    "competition preassure"
-    competition :: T = 0.0
-    "carrying capacity"
-    K :: T = 1.0
-    "immigration rate"
-    migration :: T = 0.0
-end
-
-"""
-    struct PopulationState
-
-Mutable type of the current population state containing only the population size.
-The population size can either be an integer, or a float if the size of individuals
-is rescaled.
-"""
-mutable struct PopulationState{T<:Real}
-    "Population Size"
-    size :: T
-end
-
-struct PopulationStatistic{T<:Real}
-    "Population Size"
-    size :: T
-end
-
-function PopulationStatistic(ps::PopulationState{T}) where T
-    return PopulationStatistic{T}(ps.size)
-end
 
 """
     struc ModelConfiguration
@@ -107,8 +67,7 @@ end
 
 Return an array consisting of Logistic [birth,death] rates.
 """
-function LogisticRates!(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    n = ps.size
+function LogisticRates!(rates,n,pr)
     @inbounds rates[1] = n*pr.birth
     @inbounds rates[2] = n*pr.death+n*(n-1)*pr.competition
     nothing
@@ -118,8 +77,8 @@ end
 
 Return an array consisting of accelerated Logistic [birth,death] rates.
 """
-function LogisticAccRates!(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath n = ps.size*pr.K
+function LogisticAccRates!(rates,n,pr)
+    @fastmath n = n*pr.K
     @fastmath @inbounds rates[1] = n*pr.birth
     @fastmath @inbounds rates[2] = n*(pr.death+n*pr.competition/pr.K)
     nothing
@@ -130,8 +89,8 @@ end
 
 Return an array consisting of Yule [birth,death] rates.
 """
-function YuleRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath @inbounds rates[1] = ps.size*pr.birth
+function YuleRates!(rates,n,pr)
+    @fastmath @inbounds rates[1] = n*pr.birth
     @fastmath @inbounds rates[2] = 0.0
     nothing
 end
@@ -140,8 +99,8 @@ end
 
 Return an array consisting of Yule [birth,death] rates.
 """
-function YuleAccRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath @inbounds rates[1] = ps.size*pr.birth*pr.K
+function YuleAccRates!(rates,n,pr)
+    @fastmath @inbounds rates[1] = n*pr.birth*pr.K
     @fastmath @inbounds rates[2] = 0.0
     nothing
 end
@@ -150,8 +109,7 @@ end
 
 Return an array consisting of Linear [birth,death] rates.
 """
-function LinearRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath n = ps.size
+function LinearRates!(rates,n,pr)
     @fastmath @inbounds rates[1] = n*pr.birth
     @fastmath @inbounds rates[2] = n*pr.death
     nothing
@@ -161,8 +119,8 @@ end
 
 Return an array consisting of Linear [birth,death] rates.
 """
-function LinearAccRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath n = ps.size*pr.K
+function LinearAccRates!(rates,n,pr)
+    @fastmath n = n*pr.K
     @fastmath @inbounds rates[1] = n*pr.birth
     @fastmath @inbounds rates[2] = n*pr.death
     nothing
@@ -172,8 +130,7 @@ end
 
 Return an array consisting of Linear [birth,death] rates with immigration.
 """
-function ImmigrationRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath n = ps.size
+function ImmigrationRates!(rates,n,pr)
     @fastmath @inbounds rates[1] = n*pr.birth + pr.immigration
     @fastmath @inbounds rates[2] = n*pr.death
     nothing
@@ -184,8 +141,8 @@ end
 
 Return an array consisting of Linear [birth,death] rates with immigration.
 """
-function ImmigrationAccRates(rates::Vector{Float64},ps::PopulationState,pr::Parameter)
-    @fastmath n = ps.size*pr.k
+function ImmigrationAccRates!(rates,n,pr)
+    @fastmath n = n*pr.K
     @fastmath @inbounds rates[1] = n*pr.birth + pr.immigration
     @fastmath @inbounds rates[2] = n*pr.death
     nothing
@@ -198,15 +155,15 @@ Executes the event that was choosen by the handed in integer 'i'.
 Event 1 executes a birth event by adding one individuum to the population state size.
 Event 2 executes a death event by decreasing the population state size by one.
 """
-function execute_abs!(i::Int64,ps::PopulationState,pr::Parameter)
+function execute_abs!(i,ps,pr)
     if i==1
-        @fastmath ps.size += 1
+        @fastmath n += 1
     elseif i==2
-        @fastmath ps.size -= 1
+        @fastmath n -= 1
     else
         error("Index Error: No event #$i")
     end
-    nothing
+    return n
 end
 
 """
@@ -216,15 +173,15 @@ Executes the event that was choosen by the handed in integer 'i'.
 Event 1 executes a birth event by adding 1/K individuum to the population state size.
 Event 2 executes a death event by decreasing the population state size by 1/K.
 """
-function execute_resc!(i::Int64,ps::PopulationState,pr::Parameter)
+function execute_resc!(i,n,pr)
     if i==1
-        @fastmath ps.size += 1/pr.K
+        @fastmath n += 1/pr.K
     elseif i==2
-        @fastmath ps.size -= 1/pr.K
+        @fastmath n -= 1/pr.K
     else
         error("Index Error: No event #$i")
     end
-    nothing
+    return n
 end
 
 end
