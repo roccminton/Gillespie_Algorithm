@@ -12,10 +12,10 @@ Exported functions are
     Execute ->  functions that execute the event (e.g. birth, death)
 =#
 
+module BirthDeath
+
 include("MainFunctions.jl")
 import .Gillespie: ModelConfiguration
-
-module BirthDeath
 
 using Parameters #for macro @with_kw
 
@@ -24,7 +24,7 @@ export ModelConfiguration,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
     LogisticAccRates, YuleAccRates, LinearAccRates, ImmigrationAccRates
 
-"""
+#=
     ModelConfiguration(name::AbstractString; <keywords argument>)
 
 Outer Constructor for the ModelConfiguration struc. Determines the rates and execute
@@ -32,7 +32,7 @@ Function from the name. Known model names are:
     Yule, Linear, Logistic, Immigration
 Additionally a boolean keyword argument 'rescaled' can be handed in. If true the
 `resc_execute` function is choosen, otherwise the `abs_executes`.
-"""
+=#
 function ModelConfiguration(name::AbstractString,execute::Function)
     if name ∈ ["Yule","Linear","Logistic","Immigration",
         "YuleAcc","LinearAcc","LogisticAcc","ImmigrationAcc"]
