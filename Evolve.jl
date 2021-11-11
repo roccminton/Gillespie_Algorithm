@@ -18,7 +18,7 @@ model_parameter = (
         competition = c,
         K = K
         )
-config = BirthDeath.ModelConfiguration("Logistic",rescaled=true)
+config = BirthDeath.modelsetup("Logistic",rescaled=true)
 
 #execute the simulation
 history = Gillespie.run_gillespie(t,n_0,model_parameter,config)

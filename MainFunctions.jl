@@ -5,18 +5,6 @@ using Distributions
 using ProgressMeter
 
 """
-    struc ModelConfiguration
-
-Declares configurations of the model that unlike the model parameters don't have
-to be passed to the rates function, but setup the model initially.
-"""
-struct ModelConfiguration
-    name :: AbstractString
-    rates! :: Function
-    execute! :: Function
-end
-
-"""
         run_gillespie(time::AbstractVector,n₀,par::Parameter)
 
 Run a exact stochastic simulation over the Interval time with an initial Population
@@ -26,34 +14,45 @@ states of the population during the simulation.
 """
 function run_gillespie(time,n₀,par,conf)
     #Setup
-    ct = convert(Float64,time[1]) #current time
     population_history = Vector{typeof(n₀)}(undef,length(time))
-    rates = Vector{Float64}(undef,2)
-    ex! = conf.execute!
-    r! = conf.rates!
+    haskey(conf,:setuprates) ? rates = setuprates() : rates = Vector{Float64}(undef,2)
 
-    if typeof(n₀).mutable
-        #run simulation
-        @showprogress for (index,step) in enumerate(time)
-            #save one step evolution
-            @inbounds population_history[index] = copy(n₀)
-            #execute one step of the simulation
-            ct = onestep_mutable!(n₀,rates,ct,step,par,ex!,r!)
-            #check if step was completed or evolution stopped inbetween
-            @fastmath step-ct > 0.0 && break
-        end
-    else
-        #run simulation
-        @showprogress for (index,step) in enumerate(time)
-            #save one step evolution
-            @inbounds population_history[index] = n₀
-            #execute one step of the simulation
-            ct, n₀ = onestep_immutable!(n₀,rates,ct,step,par,ex!,r!)
-            #check if step was completed or evolution stopped inbetween
-            @fastmath step-ct > 0.0 && break
-        end
-    end
+    mainiteration!(
+        population_history,
+        rates,
+        n₀,
+        convert(Float64,time[1]),
+        time,
+        par,
+        conf.execute!,
+        conf.rates!
+    )
+
     return population_history
+end
+
+function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
+    #run simulation
+    @showprogress for (index,step) in enumerate(time)
+        #save one step evolution
+        @inbounds pop_hist[index] = n0
+        #execute one step of the simulation
+        ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
+        #check if step was completed or evolution stopped inbetween
+        @fastmath step-ct > 0.0 && break
+    end
+end
+
+function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
+    #run simulation
+    @showprogress for (index,step) in enumerate(time)
+        #save one step evolution
+        @inbounds pop_hist[index] = copy(n0)
+        #execute one step of the simulation
+        ct = onestep!(n0,rates,ct,step,par,ex!,r!)
+        #check if step was completed or evolution stopped inbetween
+        @fastmath step-ct > 0.0 && break
+    end
 end
 
 """
@@ -69,42 +68,18 @@ end
 
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
-function onestep_mutable!(
-    x_0 ,
-    rates :: Vector{Float64},
-    t_0 :: Float64,
-    t_end :: Int64,
-    par,
-    execute! :: Function,
-    rates! :: Function
-    )
-
-    while t_0 ≤ t_end
-        rates!(rates,x_0,par)
-        #choose next event and event time
-        i, dt = nexteventandtime(rates)
-        #Population in absorbing state
-        iszero(i) && break
-        #update time
-        t_0 += dt
-        #execute event
-        execute!(i,x_0,par)
-    end
-    return t_0
-end
-
-function onestep_immutable!(
+function onestep!(
     x_0 ,
     rates,
     t_0,
     t_end,
     par,
-    execute!,
-    rates!
+    ex!,
+    r!
     )
 
     while t_0 ≤ t_end
-        rates!(rates,x_0,par)
+        r!(rates,x_0,par)
         #choose next event and event time
         i, dt = nexteventandtime(rates)
         #Population in absorbing state
@@ -112,7 +87,31 @@ function onestep_immutable!(
         #update time
         t_0 += dt
         #execute event
-        x_0 = execute!(i,x_0,par)
+        ex!(i,x_0,par)
+    end
+    return t_0
+end
+
+function onestep!(
+    x_0 :: Real ,
+    rates,
+    t_0,
+    t_end,
+    par,
+    ex!,
+    r!
+    )
+
+    while t_0 ≤ t_end
+        r!(rates,x_0,par)
+        #choose next event and event time
+        i, dt = nexteventandtime(rates)
+        #Population in absorbing state
+        iszero(i) && break
+        #update time
+        t_0 += dt
+        #execute event
+        x_0 = ex!(i,x_0,par)
     end
     return t_0, x_0
 end

@@ -14,12 +14,9 @@ Exported functions are
 
 module BirthDeath
 
-include("MainFunctions.jl")
-import .Gillespie: ModelConfiguration
-
 using Parameters #for macro @with_kw
 
-export ModelConfiguration,
+export modelsetup,
     execute_abs!, execute_resc!,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
     LogisticAccRates, YuleAccRates, LinearAccRates, ImmigrationAccRates
@@ -33,24 +30,24 @@ Function from the name. Known model names are:
 Additionally a boolean keyword argument 'rescaled' can be handed in. If true the
 `resc_execute` function is choosen, otherwise the `abs_executes`.
 =#
-function ModelConfiguration(name::AbstractString,execute::Function)
+function modelsetup(name::AbstractString,execute::Function)
     if name ∈ ["Yule","Linear","Logistic","Immigration",
         "YuleAcc","LinearAcc","LogisticAcc","ImmigrationAcc"]
-        return ModelConfiguration(
-            name,
-            getfield(BirthDeath,Symbol(string(name,"Rates!"))),
-            execute
+        return (
+            name = name,
+            rates! = getfield(BirthDeath,Symbol(string(name,"Rates!"))),
+            execute! = execute
             )
     else
         error("Unknown model name: $name")
     end
 end
 
-function ModelConfiguration(name::AbstractString; rescaled::Bool=false)
+function modelsetup(name::AbstractString; rescaled::Bool=false)
     if rescaled
-        ModelConfiguration(string(name,"Acc"),execute_resc!)
+        modelsetup(string(name,"Acc"),execute_resc!)
     else
-        ModelConfiguration(name,execute_abs!)
+        modelsetup(name,execute_abs!)
     end
 end
 
