@@ -49,14 +49,21 @@ function modelsetup(name::AbstractString; rescaled::Bool=false)
     end
 end
 
+"Rate functions"
+linearbirth(n,pr) = n*pr.birth
+lineardeath(n,pr) = n*pr.death
+logisticdeath(n,pr) = n*pr.death+n*(n-1)*pr.competition
+logisticbirth_rescaled(nK,pr) = nK*(pr.death+nK*pr.competition/pr.K)
+immigrationbirth(n,pr) = n*pr.birth + pr.immigration
+
 """
     LogisticRates(ps::pop_state,pr::par)
 
 Return an array consisting of Logistic [birth,death] rates.
 """
 function LogisticRates!(rates,n,pr)
-    @inbounds rates[1] = n*pr.birth
-    @inbounds rates[2] = n*pr.death+n*(n-1)*pr.competition
+    @inbounds rates[1] = linearbirth(n,pr)
+    @inbounds rates[2] = logisticdeath(n,pr)
     nothing
 end
 """
@@ -66,8 +73,8 @@ Return an array consisting of accelerated Logistic [birth,death] rates.
 """
 function LogisticAccRates!(rates,n,pr)
     @fastmath n = n*pr.K
-    @fastmath @inbounds rates[1] = n*pr.birth
-    @fastmath @inbounds rates[2] = n*(pr.death+n*pr.competition/pr.K)
+    @fastmath @inbounds rates[1] = linearbirth(n,pr)
+    @fastmath @inbounds rates[2] = logisticdeath_rescaled(n,pr)
     nothing
 end
 
@@ -77,7 +84,7 @@ end
 Return an array consisting of Yule [birth,death] rates.
 """
 function YuleRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = n*pr.birth
+    @fastmath @inbounds rates[1] = linearbirth(n,pr)
     @fastmath @inbounds rates[2] = 0.0
     nothing
 end
@@ -86,19 +93,16 @@ end
 
 Return an array consisting of Yule [birth,death] rates.
 """
-function YuleAccRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = n*pr.birth*pr.K
-    @fastmath @inbounds rates[2] = 0.0
-    nothing
-end
+YuleAccRates!(rates,n,pr) = YuleRates!(rates,n*pr.K,pr)
+
 """
     LinearRates(ps::pop_state,pr::par)
 
 Return an array consisting of Linear [birth,death] rates.
 """
 function LinearRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = n*pr.birth
-    @fastmath @inbounds rates[2] = n*pr.death
+    @fastmath @inbounds rates[1] = linearbirth(n,pr)
+    @fastmath @inbounds rates[2] = lineardeath(n,pr)
     nothing
 end
 """
@@ -106,20 +110,16 @@ end
 
 Return an array consisting of Linear [birth,death] rates.
 """
-function LinearAccRates!(rates,n,pr)
-    @fastmath n = n*pr.K
-    @fastmath @inbounds rates[1] = n*pr.birth
-    @fastmath @inbounds rates[2] = n*pr.death
-    nothing
-end
+LinearAccRates!(rates,n,pr) = LinearRates!(rates,n*pr.K,pr)
+
 """
     ImmigrationRates(ps::pop_state,pr::par)
 
 Return an array consisting of Linear [birth,death] rates with immigration.
 """
 function ImmigrationRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = n*pr.birth + pr.immigration
-    @fastmath @inbounds rates[2] = n*pr.death
+    @fastmath @inbounds rates[1] = immigrationbirth(n,pr)
+    @fastmath @inbounds rates[2] = lineardeath(n,pr)
     nothing
 end
 
@@ -128,47 +128,27 @@ end
 
 Return an array consisting of Linear [birth,death] rates with immigration.
 """
-function ImmigrationAccRates!(rates,n,pr)
-    @fastmath n = n*pr.K
-    @fastmath @inbounds rates[1] = n*pr.birth + pr.immigration
-    @fastmath @inbounds rates[2] = n*pr.death
-    nothing
-end
+ImmigrationAccRates!(rates,n,pr) = ImmigrationRates!(rates,n*pr.K,pr)
 
 """
-    execute_abs(i::Int64,ps::PopulationState,pr::Parameter)
+    execute_diff(i,ps,diff,pr)
 
 Executes the event that was choosen by the handed in integer 'i'.
-Event 1 executes a birth event by adding one individuum to the population state size.
-Event 2 executes a death event by decreasing the population state size by one.
+Event 1 executes a birth event by adding 'diff' to the population state.
+Event 2 executes a death event by decreasing the population state by 'diff'.
 """
-function execute_abs!(i,ps,pr)
+function execute_diff!(i,ps,diff,pr)
     if i==1
-        @fastmath n += 1
+        @fastmath n += diff
     elseif i==2
-        @fastmath n -= 1
+        @fastmath n -= diff
     else
         error("Index Error: No event #$i")
     end
     return n
 end
 
-"""
-    execute_resc(i::Int64,ps::PopulationState,pr::Parameter)
-
-Executes the event that was choosen by the handed in integer 'i'.
-Event 1 executes a birth event by adding 1/K individuum to the population state size.
-Event 2 executes a death event by decreasing the population state size by 1/K.
-"""
-function execute_resc!(i,n,pr)
-    if i==1
-        @fastmath n += 1/pr.K
-    elseif i==2
-        @fastmath n -= 1/pr.K
-    else
-        error("Index Error: No event #$i")
-    end
-    return n
-end
+execute_abs!(i,ps,pr) = execute_diff!(i,ps,1,pr)
+execute_resc!(i,n,pr) = execute_diff!(i,ps,1/pr.K,pr)
 
 end
