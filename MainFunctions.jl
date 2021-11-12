@@ -12,10 +12,10 @@ Run a exact stochastic simulation over the Interval time with an initial Populat
 is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
-function run_gillespie(time,n₀,par,conf)
+function run_gillespie(time,n₀,par,execute!,rates!)
     #Setup
     population_history = Vector{typeof(n₀)}(undef,length(time))
-    haskey(conf,:setuprates) ? rates = setuprates() : rates = Vector{Float64}(undef,2)
+    rates = Vector{Float64}(undef,2)
 
     mainiteration!(
         population_history,
@@ -24,8 +24,8 @@ function run_gillespie(time,n₀,par,conf)
         convert(Float64,time[1]),
         time,
         par,
-        conf.execute!,
-        conf.rates!
+        execute!,
+        rates!
     )
 
     return population_history
@@ -143,7 +143,7 @@ according to their rates.
 The value 0 is returned if the total rates are positive, but too smale to let
 the evolution continue. The maximum number of tries is set by `max_try=1000`.
 """
-function chooseevent(rates::Vector{Float64},total_rate::Float64)::Int64
+function chooseevent(rates,total_rate)
     #make it a uniform random variable in (0,total_rate)
     rndm = rand(Uniform(0.0,total_rate))
     #choose the rate at random

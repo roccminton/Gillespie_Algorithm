@@ -14,8 +14,6 @@ Exported functions are
 
 module BirthDeath
 
-using Parameters #for macro @with_kw
-
 export modelsetup,
     execute_abs!, execute_resc!,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
