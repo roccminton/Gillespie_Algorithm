@@ -8,7 +8,7 @@ import .Multitype
 #Setup Model parameters
 b = [1.0,0.1]
 d = [0.9,1.0]
-c = 10^(-5)
+c = fill(10^(-5),(2,2))
 mutation = [
         1.0 0.5
         0.0 0.5
