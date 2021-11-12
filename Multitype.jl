@@ -10,7 +10,10 @@ module Multitype
 export rates!, execute!
 
 include("MainFunctions.jl")
-import Gillespie: chooseevent
+import .Gillespie: chooseevent
+
+include("BirthDeath.jl")
+import .BirthDeath: LogisticRates!
 
 function birth!(ps, i, pr)
     #Birth with or without mutation
@@ -32,11 +35,17 @@ function death!(ps, i)
     nothing
 end
 
-function rates!(rates,ps,pr)
+function rates!(rates::Vector,ps,pr)
     @fastmath n = sum(ps)
-    @inbounds rates[1] = n*pr.birth
-    @inbounds rates[2] = n*pr.death+n*(n-1)*pr.competition
+    BirthDeath.LogisticRates!(rates,n,pr)
 end
+
+function rates!(rates::Matrix,ps,pr)
+    rates[1,:] .= broadcast(x->BirthDeath.linearbirth(x,pr),ps)
+    rates[2,:] .= broadcast(x->logisticdeath(x,ps,pr),ps)
+end
+
+logisticdeath(i,ps,pr) = ps[i]*(pr.death+ sum!(ps .* view(pr.competition,:,i)))
 
 function execute!(i,ps,pr)
     if i==1

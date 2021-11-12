@@ -15,7 +15,7 @@ states of the population during the simulation.
 function run_gillespie(time,n₀,par,execute!,rates!)
     #Setup
     population_history = Vector{typeof(n₀)}(undef,length(time))
-    rates = Vector{Float64}(undef,2)
+    rates = setuprates(par.birth)
 
     mainiteration!(
         population_history,
@@ -30,6 +30,9 @@ function run_gillespie(time,n₀,par,execute!,rates!)
 
     return population_history
 end
+
+setuprates(birthrate::Real) = Vector{typeof(birthrate)}(undef,2)
+setuprates(birthrate::Vector) = Matrix{eltype(birthrate)}(undef,(2,length(birthrate)))
 
 function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
     #run simulation

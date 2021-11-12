@@ -6,16 +6,16 @@ import .Multitype
 
 
 #Setup Model parameters
-b = 1.0
-d = 0.9
+b = [1.0,0.1]
+d = [0.9,1.0]
 c = 10^(-5)
 mutation = [
-        0 1
-        1 0
+        1.0 0.5
+        0.0 0.5
         ]
 μ = 1/100
-t = 0:150
-n_0 = [10,100]
+t = 0:1000
+n_0 = [0,100]
 
 model_parameter = (
         birth = b,
@@ -37,4 +37,4 @@ history = Gillespie.run_gillespie(
 
 using Plots
 
-plot(t,[h[i] for h in history] for i in 1:length(n_0)])
+plot(t,[[h[i] for h in history] for i in 1:length(n_0)])
