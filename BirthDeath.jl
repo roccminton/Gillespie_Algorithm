@@ -50,11 +50,10 @@ function modelsetup(name::AbstractString; rescaled::Bool=false)
 end
 
 "Rate functions"
-linearbirth(n,pr) = n*pr.birth
-lineardeath(n,pr) = n*pr.death
-logisticdeath(n,pr) = n*pr.death+n*(n-1)*pr.competition
-logisticbirth_rescaled(nK,pr) = nK*(pr.death+nK*pr.competition/pr.K)
-immigrationbirth(n,pr) = n*pr.birth + pr.immigration
+linear(n,bd) = n*bd
+logisticdeath(n,d,c) = n*d+n*(n-1)*c
+logisticbirth_rescaled(nK,d,c,K) = nK*(d+nK*c/K)
+immigrationbirth(n,b,i) = n*b + i
 
 """
     LogisticRates(ps::pop_state,pr::par)
@@ -62,8 +61,8 @@ immigrationbirth(n,pr) = n*pr.birth + pr.immigration
 Return an array consisting of Logistic [birth,death] rates.
 """
 function LogisticRates!(rates,n,pr)
-    @inbounds rates[1] = linearbirth(n,pr)
-    @inbounds rates[2] = logisticdeath(n,pr)
+    @inbounds rates[1] = linear(n,pr.birth)
+    @inbounds rates[2] = logisticdeath(n,pr.death,pr.competition)
     nothing
 end
 """
@@ -73,8 +72,8 @@ Return an array consisting of accelerated Logistic [birth,death] rates.
 """
 function LogisticAccRates!(rates,n,pr)
     @fastmath n = n*pr.K
-    @fastmath @inbounds rates[1] = linearbirth(n,pr)
-    @fastmath @inbounds rates[2] = logisticdeath_rescaled(n,pr)
+    @fastmath @inbounds rates[1] = linear(n,pr.birth)
+    @fastmath @inbounds rates[2] = logisticdeath_rescaled(n,pr.death,pr.competition,pr.K)
     nothing
 end
 
@@ -84,7 +83,7 @@ end
 Return an array consisting of Yule [birth,death] rates.
 """
 function YuleRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = linearbirth(n,pr)
+    @fastmath @inbounds rates[1] = linear(n,pr.birth)
     @fastmath @inbounds rates[2] = 0.0
     nothing
 end
@@ -101,8 +100,8 @@ YuleAccRates!(rates,n,pr) = YuleRates!(rates,n*pr.K,pr)
 Return an array consisting of Linear [birth,death] rates.
 """
 function LinearRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = linearbirth(n,pr)
-    @fastmath @inbounds rates[2] = lineardeath(n,pr)
+    @fastmath @inbounds rates[1] = linear(n,pr.birth)
+    @fastmath @inbounds rates[2] = linear(n,pr.death)
     nothing
 end
 """
@@ -118,8 +117,8 @@ LinearAccRates!(rates,n,pr) = LinearRates!(rates,n*pr.K,pr)
 Return an array consisting of Linear [birth,death] rates with immigration.
 """
 function ImmigrationRates!(rates,n,pr)
-    @fastmath @inbounds rates[1] = immigrationbirth(n,pr)
-    @fastmath @inbounds rates[2] = lineardeath(n,pr)
+    @fastmath @inbounds rates[1] = immigrationbirth(n,pr.birth,pr.immigration)
+    @fastmath @inbounds rates[2] = linear(n,pr.death)
     nothing
 end
 
