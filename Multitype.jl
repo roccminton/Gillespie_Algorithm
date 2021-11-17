@@ -35,14 +35,37 @@ function death!(ps, i)
     nothing
 end
 
+#=
+Rates function if birth and death rates are equal for all individuals.
+In that case the rates Vector has only two elements.
+=#
 function rates!(rates::Vector,ps,pr)
     @fastmath n = sum(ps)
     BirthDeath.LogisticRates!(rates,n,pr)
 end
 
-function rates!(rates::Matrix,ps,pr)
-    rates[1,:] .= broadcast(x->BirthDeath.linearbirth(x,pr),ps)
-    rates[2,:] .= broadcast(x->logisticdeath(x,ps,pr),ps)
+#=
+Rates function if birth and death rates vary from one individual to another.
+In that case the rates are represented as a Matrix. The first row holds the
+birth rates the second row holds the death rates. Individuals are listed colomn-
+wise.
+=#
+
+function rates!(rates::Tuple{Vector,Vector},ps,pr)
+    #linear birth
+    rates[1] .= ps .* pr.birth
+    #for each individual get a total death rate of
+    #   n_x (d + Σ c(x,y)n_y)
+    #death rate
+    rates[2] .= pr.death
+    #additional death through competition
+    rates[2] .+= pr.competition * ps
+    #total death rate
+    rates[2] .*= ps
+end
+
+function rates!(rates::Tuple{Function},ps,pr)
+
 end
 
 logisticdeath(i,ps,pr) = ps[i]*(pr.death+ sum!(ps .* view(pr.competition,:,i)))
@@ -52,6 +75,16 @@ function execute!(i,ps,pr)
         birth!(ps,Gillespie.chooseevent(ps,sum(ps)),pr)
     elseif i==2
         death!(ps,Gillespie.chooseevent(ps,sum(ps)))
+    else
+        error("Index Error: No event #$i")
+    end
+end
+
+function execute!(i,j,ps,pr)
+    if i==1
+        birth!(ps,j,pr)
+    elseif i==2
+        death!(ps,j)
     else
         error("Index Error: No event #$i")
     end
