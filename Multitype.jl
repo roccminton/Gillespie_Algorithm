@@ -51,34 +51,24 @@ birth rates the second row holds the death rates. Individuals are listed colomn-
 wise.
 =#
 
-function rates!(rates::Tuple{Vector,Vector},ps,pr)
+function rates!(rates::Matrix,ps,pr)
     #linear birth
-    rates[1] .= ps .* pr.birth
+    view(rates,1,:) .= ps .* pr.birth
     #for each individual get a total death rate of
     #   n_x (d + Σ c(x,y)n_y)
     #death rate
-    rates[2] .= pr.death
+    view(rates,2,:) .= pr.death
     #additional death through competition
-    rates[2] .+= pr.competition * ps
+    view(rates,2,:) .+= pr.competition * ps
     #total death rate
-    rates[2] .*= ps
+    view(rates,2,:) .*= ps
 end
 
 function execute!(i,ps,pr)
-    if i==1
-        birth!(ps,Gillespie.chooseevent(ps,sum(ps)),pr)
-    elseif i==2
-        death!(ps,Gillespie.chooseevent(ps,sum(ps)))
+    if isodd(i)
+        birth!(ps,div(i+1,2),pr)
     else
-        error("Index Error: No event #$i")
-    end
-end
-
-function execute!(i,j,ps,pr)
-    if i==1
-        birth!(ps,j,pr)
-    elseif i==2
-        death!(ps,j)
+        death!(ps,div(i,2))
     else
         error("Index Error: No event #$i")
     end

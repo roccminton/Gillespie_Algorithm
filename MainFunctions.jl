@@ -32,10 +32,7 @@ function run_gillespie(time,n₀,par,execute!,rates!)
 end
 
 setuprates(birthrate::Real) = Vector{typeof(birthrate)}(undef,2)
-setuprates(birthrate::Vector) = (
-    Vector{eltype(birthrate)}(undef,length(birthrate)),
-    Vector{eltype(birthrate)}(undef,length(birthrate)),
-    )
+setuprates(birthrate::Vector) = Matrix{eltype(birthrate)}(undef,(2,length(birthrate)))
 
 setuphistory(time,n₀::Real) = zeros(typeof(n₀),length(time))
 setuphistory(time,n₀::Vector) = zeros(eltype(n₀),(length(time),length(n₀)))
@@ -67,7 +64,7 @@ end
 """
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
-function onestep!(x_0,rates::Vector,t_0,t_end,par,ex!,r!)
+function onestep!(x_0,rates::Matrix,t_0,t_end,par,ex!,r!)
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
@@ -78,21 +75,6 @@ function onestep!(x_0,rates::Vector,t_0,t_end,par,ex!,r!)
         t_0 += dt
         #execute event
         ex!(i,x_0,par)
-    end
-    return t_0
-end
-
-function onestep!(x_0,rates::Tuple{Vector,Vector},t_0,t_end,par,ex!,r!)
-    while t_0 ≤ t_end
-        r!(rates,x_0,par)
-        #choose next event and event time
-        i,j,dt = nexteventandtime(rates)
-        #Population in absorbing state
-        iszero(i) && break
-        #update time
-        t_0 += dt
-        #execute event
-        ex!(i,j,x_0,par)
     end
     return t_0
 end
@@ -119,7 +101,7 @@ Samples a exponential distributed random variable to determine the time for the 
 event and calls `choose_event`. The return value is a tuple consiting of the
 envent index returned by `choose_event` and the time to the next event.
 """
-function nexteventandtime(rates::Vector{Float64})
+function nexteventandtime(rates)
     #calculate total event rate
     @fastmath total_rate = sum(rates)
     #Population in absorbing state if sum of rates is zero
@@ -130,19 +112,6 @@ function nexteventandtime(rates::Vector{Float64})
     i = chooseevent(rates,total_rate)
     return i, dt
 end
-
-function nexteventandtime(rates::Tuple{Vector,Vector})
-    #calculate total event rate
-    @fastmath total_rate = sum(rates[1])+sum(rates[2])
-    #Population in absorbing state if sum of rates is zero
-    iszero(total_rate) && return 0,0, 0.0
-    #sample next event time
-    dt = rand(Exponential(1 / (total_rate)))
-    #choose event
-    i,j = chooseevent(rates,total_rate)
-    return i,j,dt
-end
-
 
 """
     chooseevent(rates::Vector{Float64},total_rate::Float64;<keyword arguments>)
@@ -161,19 +130,6 @@ function chooseevent(rates,total_rate)
         rndm ≤ 0.0 && return index
     end
 end
-
-function chooseevent(rates::Tuple{Vector,Vector},total_rate)
-    #make it a uniform random variable in (0,total_rate)
-    rndm = rand(Uniform(0.0,total_rate))
-    #choose the rate at random
-    for bd in 1:2
-        for (index, rate) in enumerate(rates[bd])
-            rndm -= rate
-            rndm ≤ 0.0 && return bd,index
-        end
-    end
-end
-
 
 """
     run_gillespie(time::Vector{AbstractVector},n₀::PopulationState,par::Vector{Parameter},conf::Vector{ModelConfiguration})
