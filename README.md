@@ -1,4 +1,4 @@
-# Gillespie_Algorithm for Adaptive Dynamics
+# Gillespie Algorithm for Adaptive Dynamics
 
 I'm trying to implement a general version of Gillespies Algorithm for the settup of adaptive dynamics. 
 mmon implementations of Gillespies Algorithm force you to know in advance 
