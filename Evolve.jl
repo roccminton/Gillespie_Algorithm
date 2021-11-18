@@ -4,21 +4,22 @@ include("MainFunctions.jl")
 import .Gillespie
 import .Multitype
 
+using LinearAlgebra
+
 
 #Setup Model parameters
-b = [1.0,1.0]
-d = [0.9,0.9]
-c = [
-        10^(-5) 0.0
-        0.0 10^(-5)
-]
+ntypes = 10
+
+b = fill(1.0,ntypes)
+d = fill(0.9,ntypes)
+c = Diagonal(fill(10^(-5),ntypes))
 mutation = [
         0.0 0.5
         0.0 0.5
         ]
 μ = 0.0
-t = 0:100
-n_0 = [100,100]
+t = 0:200
+n_0 = fill(10,ntypes)
 
 model_parameter = (
         birth = b,
@@ -40,4 +41,4 @@ history = Gillespie.run_gillespie(
 
 using Plots
 
-plot(t,[[h[i] for h in history] for i in 1:length(n_0)])
+plot(t,[history[:,i] for i in 1:length(n_0)])

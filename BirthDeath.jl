@@ -14,8 +14,12 @@ Exported functions are
 
 module BirthDeath
 
-export modelsetup,
-    execute_abs!, execute_resc!,
+include("MainFunctions.jl")
+
+import .Gillespie
+
+export modelsetup, rungillespie,
+    execute_abs, execute_resc,
     LogisticRates, YuleRates, LinearRates, ImmigrationRates,
     LogisticAccRates, YuleAccRates, LinearAccRates, ImmigrationAccRates
 
@@ -43,16 +47,16 @@ end
 
 function modelsetup(name::AbstractString; rescaled::Bool=false)
     if rescaled
-        modelsetup(string(name,"Acc"),execute_resc!)
+        modelsetup(string(name,"Acc"),execute_resc)
     else
-        modelsetup(name,execute_abs!)
+        modelsetup(name,execute_abs)
     end
 end
 
 "Rate functions"
 linear(n,bd) = n*bd
 logisticdeath(n,d,c) = n*d+n*(n-1)*c
-logisticbirth_rescaled(nK,d,c,K) = nK*(d+nK*c/K)
+logisticdeath_rescaled(nK,d,c,K) = nK*(d+nK*c/K)
 immigrationbirth(n,b,i) = n*b + i
 
 """
@@ -136,18 +140,20 @@ Executes the event that was choosen by the handed in integer 'i'.
 Event 1 executes a birth event by adding 'diff' to the population state.
 Event 2 executes a death event by decreasing the population state by 'diff'.
 """
-function execute_diff!(i,ps,diff,pr)
+function execute_diff(i,ps,diff,pr)
     if i==1
-        @fastmath n += diff
+        @fastmath ps += diff
     elseif i==2
-        @fastmath n -= diff
+        @fastmath ps -= diff
     else
         error("Index Error: No event #$i")
     end
-    return n
+    return ps
 end
 
-execute_abs!(i,ps,pr) = execute_diff!(i,ps,1,pr)
-execute_resc!(i,n,pr) = execute_diff!(i,ps,1/pr.K,pr)
+execute_abs(i,ps,pr) = execute_diff(i,ps,1,pr)
+execute_resc(i,ps,pr) = execute_diff(i,ps,1/pr.K,pr)
 
-end
+rungillespie(t,n_0,par,conf) = Gillespie.run_gillespie(t,n_0,par,conf.execute!,conf.rates!)
+
+end #end of module

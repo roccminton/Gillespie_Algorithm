@@ -65,16 +65,6 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
 end
 
 """
-    onestep!(
-        t_0 :: Float64,
-        t_end :: Int64,
-        x_0 :: PopulationState,
-        rates :: Vector{Float64},
-        par :: Parameter,
-        execute! :: Function,
-        rates! :: Function
-        )
-
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
 function onestep!(x_0,rates::Vector,t_0,t_end,par,ex!,r!)
@@ -107,7 +97,7 @@ function onestep!(x_0,rates::Tuple{Vector,Vector},t_0,t_end,par,ex!,r!)
     return t_0
 end
 
-function onestep!(x_0 :: Real ,rates,t_0,t_end,par,ex!,r!)
+function onestep!(x_0::Real,rates::Vector,t_0,t_end,par,ex!,r!)
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
