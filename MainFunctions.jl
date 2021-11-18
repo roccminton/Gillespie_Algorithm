@@ -14,7 +14,7 @@ states of the population during the simulation.
 """
 function run_gillespie(time,n₀,par,execute!,rates!)
     #Setup
-    population_history = Vector{typeof(n₀)}(undef,length(time))
+    population_history = setuphistory(time,n₀)
     rates = setuprates(par.birth)
 
     mainiteration!(
@@ -37,11 +37,14 @@ setuprates(birthrate::Vector) = (
     Vector{eltype(birthrate)}(undef,length(birthrate)),
     )
 
+setuphistory(time,n₀::Real) = zeros(typeof(n₀),length(time))
+setuphistory(time,n₀::Vector) = zeros(eltype(n₀),(length(time),length(n₀)))
+
 function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #save one step evolution
-        @inbounds pop_hist[index] = n0
+        pop_hist[index] = n0
         #execute one step of the simulation
         ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
@@ -53,7 +56,7 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #save one step evolution
-        @inbounds pop_hist[index] = copy(n0)
+        view(pop_hist,index,:) .= n0
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween

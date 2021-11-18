@@ -64,12 +64,6 @@ function rates!(rates::Tuple{Vector,Vector},ps,pr)
     rates[2] .*= ps
 end
 
-function rates!(rates::Tuple{Function},ps,pr)
-
-end
-
-logisticdeath(i,ps,pr) = ps[i]*(pr.death+ sum!(ps .* view(pr.competition,:,i)))
-
 function execute!(i,ps,pr)
     if i==1
         birth!(ps,Gillespie.chooseevent(ps,sum(ps)),pr)
