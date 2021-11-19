@@ -7,13 +7,41 @@
 """
 module Multitype
 
-export rates!, execute!
+export rates!, execute!, rungillespie
 
 include("MainFunctions.jl")
-import .Gillespie: chooseevent
+import .Gillespie: run_gillespie
+using NamedTupleTools
 
-include("BirthDeath.jl")
-import .BirthDeath: LogisticRates!
+function rungillespie(time,n₀,par;rescaled=false)
+    if rescaled
+        Gillespie.run_gillespie(
+            time,n₀,
+            generaterescaledparam(par),
+            execute!,rates!
+            )
+    else
+        Gillespie.run_gillespie(
+            time,n₀,
+            (par...,diff=one(eltype(n₀))),
+            execute!,rates!
+            )
+    end
+end
+
+function generaterescaledparam(par)
+    par.birth .*= par.K
+    par.death .*= par.K
+    par.competition .*= par.K
+
+    if haskey(par,:μ)
+        fields = (field for field in fieldnames(par) if field != :μ)
+        values = (par[field] for field in fields)
+        return NamedTuple{(fields...,:μ,:diff)}(values...,par.μ/par.K,inv(par.K))
+    else
+        return (par...,diff=inv(par.K))
+    end
+end
 
 function birth!(ps, i, pr)
     #Birth with or without mutation
@@ -21,27 +49,18 @@ function birth!(ps, i, pr)
         #mutate to new type/species and add to species
         index_new_type = mutate(i,pr)
         #setup the size of the new type
-        ps[index_new_type] += one(eltype(ps))
+        ps[index_new_type] += pr.diff
     else
-        ps[i] += one(eltype(ps))
+        ps[i] += pr.diff
     end
     nothing
 end
 
 mutate(i, pr) = Gillespie.chooseevent(view(pr.M,:,i),1.0)
 
-function death!(ps, i)
-    ps[i] -= one(eltype(ps))
+function death!(ps, i,pr)
+    ps[i] -= pr.diff
     nothing
-end
-
-#=
-Rates function if birth and death rates are equal for all individuals.
-In that case the rates Vector has only two elements.
-=#
-function rates!(rates::Vector,ps,pr)
-    @fastmath n = sum(ps)
-    BirthDeath.LogisticRates!(rates,n,pr)
 end
 
 #=
@@ -68,7 +87,7 @@ function execute!(i,ps,pr)
     if isodd(i)
         birth!(ps,div(i+1,2),pr)
     else
-        death!(ps,div(i,2))
+        death!(ps,div(i,2),pr)
     end
 end
 

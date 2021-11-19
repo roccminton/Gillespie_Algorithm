@@ -1,7 +1,5 @@
 include("../Multitype.jl")
-include("../MainFunctions.jl")
 
-import .Gillespie
 import .Multitype
 
 using LinearAlgebra
@@ -11,25 +9,23 @@ using Plots
 ntypes = 5
 
 #birht rates get higher for higher indexed types
-b = collect(range(1.0,stop=1.2,length=ntypes))
+b = collect(range(0.1,stop=0.12,length=ntypes))
 #deaht rates stay constant
-d = fill(0.9,ntypes)
+d = fill(0.09,ntypes)
 #uniform competition, but only between smaller types
-c = UpperTriangular(fill(10^(-5),(ntypes,ntypes)))
+c = UpperTriangular(fill(10^(-4),(ntypes,ntypes)))
 
 #Mutation from n->n+1 only
 M = fill(1.0,(ntypes,ntypes))
 mutation = Bidiagonal(M,:L)-Diagonal(M)
 mutation[end,end] = 1.0
-#at a rate of aprrox 1/K
-μ = 10^(-5)
 
 #time horizon
 t = 0:500
 
 #start in a monomorphic population with only the first trait
-n_0 = zeros(Int,ntypes)
-n_0[1] = 100
+n_0 = zeros(ntypes)
+n_0[1] = 100.0
 
 #collect all model parameters
 model_parameter = (
@@ -37,17 +33,29 @@ model_parameter = (
         death = d,
         competition = c,
         M = mutation ,
-        μ = μ
+        μ = 10^(-3)
         )
 
 #execute the simulation
-history = Gillespie.run_gillespie(
-        t,
-        n_0,
-        model_parameter,
-        Multitype.execute!,
-        Multitype.rates!
+history = Multitype.rungillespie(t,n_0,model_parameter)
+#execute a rescaled version of the simulation
+history_res10 = Multitype.rungillespie(
+        t,n_0,
+        (model_parameter...,K=100.0),
+        rescaled=true
+        )
+#execute a rescaled version of the simulation
+history_res100 = Multitype.rungillespie(
+        t,n_0,
+        (model_parameter...,K=1000.0),
+        rescaled=true
         )
 
 #plot the simulation result
-plot(t,[history[:,i] for i in 1:ntypes],legend=false)
+plothistory(history,ntypes) = plot(t,[history[:,i] for i in 1:ntypes],legend=false)
+
+p = plothistory(history,ntypes)
+p_res10 = plothistory(history_res10,ntypes)
+p_res100 = plothistory(history_res100,ntypes)
+
+plot(p,p_res10,p_res100,layout=(3,1))
