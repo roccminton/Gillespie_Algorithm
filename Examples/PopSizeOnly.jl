@@ -1,6 +1,6 @@
-include("../BirthDeath.jl")
+include("../Onetype.jl")
 
-import .BirthDeath
+import .OneType
 using Plots
 
 #Setup Model parameters
@@ -13,28 +13,28 @@ log_par = (
         death = 0.9,
         competition = 10^(-5)
         )
-logistic = BirthDeath.modelsetup("Logistic")
-loghis = BirthDeath.rungillespie(t,100,log_par,logistic)
+logistic = OneType.modelsetup("Logistic")
+loghis = OneType.rungillespie(t,100,log_par,logistic)
 
 # logistic population growth rescaled
 log_par_res = (log_par...,K = 100)
-logistic_res = BirthDeath.modelsetup("Logistic",rescaled=true)
-logreshis = BirthDeath.rungillespie(t,100.0,log_par_res,logistic_res)
+logistic_res = OneType.modelsetup("Logistic",rescaled=true)
+logreshis = OneType.rungillespie(t,100.0,log_par_res,logistic_res)
 
 #exponential growth
 yule_par = (birth=0.05,)
-yule = BirthDeath.modelsetup("Yule")
-yulehis = BirthDeath.rungillespie(t,10,yule_par,yule)
+yule = OneType.modelsetup("Yule")
+yulehis = OneType.rungillespie(t,10,yule_par,yule)
 
 #linear birht and death process
 linear_par = (birth=0.5,death=0.5)
-linear = BirthDeath.modelsetup("Linear")
-linearhis = BirthDeath.rungillespie(t,5000,linear_par,linear)
+linear = OneType.modelsetup("Linear")
+linearhis = OneType.rungillespie(t,5000,linear_par,linear)
 
 #birth death process with immigration
 imm_par = (linear_par...,immigration = 1)
-imm = BirthDeath.modelsetup("Immigration")
-immhis = BirthDeath.rungillespie(t,5000,imm_par,imm)
+imm = OneType.modelsetup("Immigration")
+immhis = OneType.rungillespie(t,5000,imm_par,imm)
 
 #----Plotting---
 

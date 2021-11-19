@@ -12,7 +12,7 @@ Exported functions are
     Execute ->  functions that execute the event (e.g. birth, death)
 =#
 
-module BirthDeath
+module OneType
 
 include("MainFunctions.jl")
 
