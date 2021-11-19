@@ -69,8 +69,6 @@ function execute!(i,ps,pr)
         birth!(ps,div(i+1,2),pr)
     else
         death!(ps,div(i,2))
-    else
-        error("Index Error: No event #$i")
     end
 end
 
