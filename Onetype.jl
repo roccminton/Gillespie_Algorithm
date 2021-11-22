@@ -1,15 +1,11 @@
 #=
-    module BirthDeath
+    module OneType
 
-Defines all critical functions and types for a simple birth death process. Exported
-types are
-    Parameter -> Collection of parameters
-    PopulationState -> Current population state
-    PopulationStatistic -> Population State to save for statistics
-    ModelConfiguration -> essential model functions
-Exported functions are
-    Rates -> functions that return an array of rates for different events
-    Execute ->  functions that execute the event (e.g. birth, death)
+Defines all critical functions and types for a simple birth death process.
+
+Rates are represended as Vector with two entries only, where the first
+entry is the overall birht rate and the second the death rate of the system.
+
 =#
 
 module OneType
@@ -154,6 +150,14 @@ end
 execute_abs(i,ps,pr) = execute_diff(i,ps,1,pr)
 execute_resc(i,ps,pr) = execute_diff(i,ps,1/pr.K,pr)
 
-rungillespie(t,n_0,par,conf) = Gillespie.run_gillespie(t,n_0,par,conf.execute!,conf.rates!)
+setuprates(birthrate) = Vector{typeof(birthrate)}(undef,2)
+setuphistory(time,n₀) = zeros(typeof(n₀),length(time))
+
+rungillespie(t,n_0,par,conf) = Gillespie.run_gillespie(
+    t,n_0,par,
+    conf.execute!,conf.rates!
+    setuprates(par.birth),
+    setuphistory(t,n_0)
+    )
 
 end #end of module

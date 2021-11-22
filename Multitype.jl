@@ -1,10 +1,13 @@
-"""
+#=
     module Multitype
 
     Implementation of a Logistic Model with a finite number of types.
     Mutation are possible at an independent rate μ and are specified by a
     transition matrix from one type to the next.
-"""
+
+    Rates are represended as a Matrix, where the frist row gives the birh
+    and the second row the death rate of each individual at the column index.
+=#
 module Multitype
 
 export rates!, execute!, rungillespie
@@ -13,12 +16,17 @@ include("MainFunctions.jl")
 import .Gillespie: run_gillespie
 using NamedTupleTools
 
+setuprates(birthrate::Vector) = Matrix{eltype(birthrate)}(undef,(2,length(birthrate)))
+setuphistory(time,n₀::Vector) = zeros(eltype(n₀),(length(time),length(n₀)))
+
 function rungillespie(time,n₀,par;rescaled=false)
     if rescaled
         Gillespie.run_gillespie(
             time,n₀,
             generaterescaledparam(par),
-            execute!,rates!
+            execute!,rates!,
+            setuprates(par.birth),
+            setuphistory(time,n₀)
             )
     else
         Gillespie.run_gillespie(
