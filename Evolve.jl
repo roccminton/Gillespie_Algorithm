@@ -46,4 +46,4 @@ history = Gillespie.run_gillespie(
 
 using Plots
 
-#plot(t,[history[:,i] for i in 1:length(n_0)])
+plot(t,history[1])
