@@ -16,7 +16,7 @@ function run_gillespie(time,n₀,par,execute!,rates!,initrates,population_histor
 
     mainiteration!(
         population_history,
-        rates,
+        initrates,
         n₀,
         convert(Float64,time[1]),
         time,
@@ -35,6 +35,21 @@ function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
         pop_hist[index] = n0
         #execute one step of the simulation
         ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
+        #check if step was completed or evolution stopped inbetween
+        @fastmath step-ct > 0.0 && break
+    end
+end
+
+function mainiteration!(pop_hist,rates,n0::Dict,ct,time,par,ex!,r!)
+    #run simulation
+    @showprogress for (index,step) in enumerate(time)
+        #save one step evolution
+        for (x,vₓ) in n0
+            !haskey(pop_hist,x) && (pop_hist[x] = zeros(eltype(valtype(pop_hist)),length(time)))
+            pop_hist[x][index] = vₓ[1]
+        end
+        #execute one step of the simulation
+        ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
         @fastmath step-ct > 0.0 && break
     end
@@ -66,6 +81,21 @@ function onestep!(x_0,rates::Matrix,t_0,t_end,par,ex!,r!)
         t_0 += dt
         #execute event
         ex!(i,x_0,par)
+    end
+    return t_0
+end
+
+function onestep!(x_0,rates::Dict,t_0,t_end,par,ex!,r!)
+    while t_0 ≤ t_end
+        r!(rates,x_0,par)
+        #choose next event and event time
+        i, trait, dt = nexteventandtime(rates)
+        #Population in absorbing state
+        iszero(i) && break
+        #update time
+        t_0 += dt
+        #execute event
+        ex!(i,trait,x_0,rates,par)
     end
     return t_0
 end
@@ -104,6 +134,18 @@ function nexteventandtime(rates)
     return i, dt
 end
 
+function nexteventandtime(rates::Dict)
+    #calculate total event rate
+    total_rate = sumsumdict(rates)
+    #Population in absorbing state if sum of rates is zero
+    iszero(total_rate) && return 0, zero(keytype(rates)), 0.0
+    #sample next event time
+    dt = rand(Exponential(1 / (total_rate)))
+    #choose event
+    i, trait = chooseevent(rates,total_rate)
+    return i, trait, dt
+end
+
 """
     chooseevent(rates::Vector{Float64},total_rate::Float64;<keyword arguments>)
 
@@ -121,3 +163,29 @@ function chooseevent(rates,total_rate)
         rndm ≤ 0.0 && return index
     end
 end
+
+function chooseevent(rates::Dict,total_rate)
+    #make it a uniform random variable in (0,total_rate)
+    rndm = rand(Uniform(0.0,total_rate))
+    #choose the rate at random
+    for (trait, rate) in rates
+        for (index,r) in enumerate(rate)
+            rndm -= r
+            rndm ≤ 0.0 && return index, trait
+        end
+    end
+end
+
+"""
+For a dictionary with vectors of values calculates the sum of all
+values of all vectors combined.
+"""
+function sumsumdict(D)
+    result = zero(eltype(valtype(D)))
+    for v in values(D)
+        result += sum(v)
+    end
+    return result
+end
+
+end #end of module Gillespie
