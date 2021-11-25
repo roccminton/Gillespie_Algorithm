@@ -27,7 +27,7 @@ model_parameter = (
         )
 
 
-t = 0:1000
+t = 0:500
 x0 = -1.0
 n_x0 = InfiniteTypes.monoeq(x0,model_parameter)
 

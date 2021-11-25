@@ -113,7 +113,7 @@ end
 
 function birth!(ps, rates, pr, trait)
     #Birth with or without mutation
-    if pr.μ > 0 && rand() ≤ pr.μ
+    if pr.μ > 0.0 && rand() ≤ pr.μ
         #mutate to new type/species and add to species
         new_trait = pr.mutate(trait)
         #setup the size of the new type
