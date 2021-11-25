@@ -12,7 +12,31 @@
 
 module InfiniteTypes
 
+include("MainFunctions.jl")
+import .Gillespie
+
 export rates!, execute!
+
+function rungillespie(time,x0,n_x0,par;rescaled=false)
+    ps0 = initialpopulation(x0,n_x0,par)
+    his = setuphistory(time,ps0)
+
+    Gillespie.run_gillespie!(
+        time,ps0,
+        setupparameter(ps0,par,rescaled),
+        execute!,rates!,
+        setuprates(par.birth,par.death,ps0),
+        his
+        )
+
+    return his
+end
+
+setupparameter(ps0,par,rescaled) = (
+    par...,
+    compdict = generatecompdict(ps0,par.competition),
+    diff = (rescaled ? inv(par.K) : one(eltype(valtype(ps0))))
+    )
 
 function setuprates(b,d,x0)
     Individuals = collect(keys(x0))
@@ -22,12 +46,28 @@ function setuprates(b,d,x0)
         }()
 end
 
+initialpopulation(x,nₓ,par) = Dict(x => [nₓ,par.birth(x),par.death(x)])
+
 function setuphistory(time,n₀)
     T = eltype(valtype(n₀))
     l = length(time)
     return Dict(x=>zeros(T,l) for x in keys(n₀))
 end
 
+function generatecompdict(ps,competition)
+    IndividualType = keytype(ps)
+    Individuals = collect(keys(ps))
+    #generate empty dictionary
+    C = Dict{
+        Tuple{IndividualType,IndividualType},
+        typeof(competition(Individuals[1],Individuals[1]))
+        }()
+    #populate dictionary
+    for x in keys(ps), y in keys(ps)
+        C[(x,y)] = competition(x,y)
+    end
+    return C
+end
 
 function rates!(rates::Dict,ps::Dict,pr)
     for (x,vₓ) in ps
@@ -53,12 +93,22 @@ function birth!(ps, rates, pr, trait)
         if haskey(ps,new_trait)
             ps[new_trait][1] += pr.diff
         else
-            addnewtrait!(ps,rates,pr)
+            addnewtrait!(ps,rates,pr,new_trait)
         end
     else
         ps[trait][1] += pr.diff
     end
     nothing
+end
+
+function addnewtrait!(ps,rates,pr,trait)
+    #add to population state
+    ps[trait] = [pr.diff,pr.birth(trait),pr.death(trait)]
+    #set competition
+    for other_trait in keys(ps)
+        pr.compdict[(trait,other_trait)] = pr.competition(trait,other_trait)
+        pr.compdict[(other_trait,trait)] = pr.competition(other_trait,trait)
+    end
 end
 
 function death!(ps,trait,pr)
@@ -75,29 +125,6 @@ function execute!(i,trait,ps,rates,pr)
     end
 end
 
-function addnewtrait!(ps,rates,pr, trait)
-    #add to population state
-    ps[trait] = [pr.diff,pr.birth(trait),pr.death(trait)]
-    #set competition
-    for other_trait in keys(ps)
-        pr.compdict[(trait,other_trait)] = pr.competition(trait,other_trait)
-        pr.compdict[(other_trait,trait)] = pr.competition(other_trait,trait)
-    end
-end
-
-function generatecompdict(ps,competition)
-    IndividualType = keytype(ps)
-    Individuals = collect(keys(ps))
-    #generate empty dictionary
-    C = Dict{
-        Tuple{IndividualType,IndividualType},
-        typeof(competition(Individuals[1],Individuals[1]))
-        }()
-    #populate dictionary
-    for x in keys(ps), y in keys(ps)
-        C[(x,y)] = competition(x,y)
-    end
-    return C
-end
+monoeq(x,par) = (par.birth(x) - par.death(x)) / par.competition(x,x)
 
 end  # end of module InfiniteTypes

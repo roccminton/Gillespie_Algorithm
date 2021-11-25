@@ -12,7 +12,7 @@ Run a exact stochastic simulation over the Interval time with an initial Populat
 is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
-function run_gillespie(time,n₀,par,execute!,rates!,initrates,population_history)
+function run_gillespie!(time,n₀,par,execute!,rates!,initrates,population_history)
 
     mainiteration!(
         population_history,
@@ -24,8 +24,7 @@ function run_gillespie(time,n₀,par,execute!,rates!,initrates,population_histor
         execute!,
         rates!
     )
-
-    return population_history
+    
 end
 
 function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
