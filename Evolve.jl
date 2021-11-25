@@ -1,49 +1,37 @@
 include("Infinitetypes.jl")
-include("MainFunctions.jl")
+include("Plotting.jl")
 
-import .Gillespie
 import .InfiniteTypes
+import .PlotFromDicts
 
 using LinearAlgebra
+using Distributions
 
+K = 1000
+σ₁ = 0.9
+σ₂ = 0.8
 
-#Setup Model parameters
-ntypes = 10
+b(x,σ) = exp(-x^2 / (2σ^2))
+d(x) = 0.0
+c(x,y,σ) = exp(-(x-y)^2 / (2σ^2)) / 1000
 
-b(x) = 1.0
-d(x) = 0.9
-c(x,y) = 10^(-5)
-
-mutation = [
-        0.0 0.5
-        0.0 0.5
-        ]
-μ = 0.0
-t = 0:200
-n_0 = Dict(1=>[100.0,b(1),d(1)])
+mutation(x) = rand(truncated(Normal(x,0.1),-1,1))
+μ = inv(K*log(K))
 
 model_parameter = (
-        birth = b,
+        birth = x->b(x,σ₁),
         death = d,
-        competition = c,
-        compdict = InfiniteTypes.generatecompdict(n_0,c),
-        M = mutation ,
+        competition = (x,y)->c(x,y,σ₂),
+        mutate = mutation ,
         μ = μ,
-        diff = 1
         )
+
+
+t = 0:1000
+x0 = -1.0
+n_x0 = InfiniteTypes.monoeq(x0,model_parameter)
 
 #execute the simulation
-
-history = Gillespie.run_gillespie(
-        t,
-        n_0,
-        model_parameter,
-        InfiniteTypes.execute!,
-        InfiniteTypes.rates!,
-        InfiniteTypes.setuprates(b,d,n_0),
-        InfiniteTypes.setuphistory(t,n_0)
-        )
-
-using Plots
-
-plot(t,history[1])
+history = InfiniteTypes.rungillespie(t,x0,n_x0,model_parameter)
+#plot simulation
+PlotFromDicts.plotTSS(history)
