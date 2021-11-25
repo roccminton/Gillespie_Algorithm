@@ -15,6 +15,8 @@ module InfiniteTypes
 include("MainFunctions.jl")
 import .Gillespie
 
+using NamedTupleTools #for fieldnames
+
 export rates!, execute!
 
 function rungillespie(time,x0,n_x0,par;rescaled=false)
@@ -32,11 +34,36 @@ function rungillespie(time,x0,n_x0,par;rescaled=false)
     return his
 end
 
-setupparameter(ps0,par,rescaled) = (
-    par...,
-    compdict = generatecompdict(ps0,par.competition),
-    diff = (rescaled ? inv(par.K) : one(eltype(valtype(ps0))))
-    )
+function generaterescaledparam(par)
+    #generate rescaled functions
+    birth = x -> par.K * par.birth(x)
+    death = x -> par.K * par.death(x)
+    competition = (x,y) -> par.K * par.competition(x,y)
+
+    #copy other fields
+    fields = (field for field in fieldnames(par) if field ∉ [:birth,:death,:competition])
+    values = (par[field] for field in fields)
+
+    #return rescaled tuple with rescaled mutation and rescaled diff
+    return NamedTuple{(fields...,:diff,:birth,:death,:competition)}(
+        values...,
+        inv(par.K),
+        birth,
+        death,
+        competition)
+end
+
+function setupparameter(ps0,par,rescaled)
+    with_comp_par = (
+        par...,
+        compdict = generatecompdict(ps0,par.competition)
+        )
+    if rescaled
+        return generaterescaledparam(with_comp_par)
+    else
+        return (with_comp_par...,diff=one(eltype(valtype(ps0))))
+    end
+end
 
 function setuprates(b,d,x0)
     Individuals = collect(keys(x0))
