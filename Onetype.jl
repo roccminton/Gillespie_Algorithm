@@ -11,7 +11,6 @@ entry is the overall birht rate and the second the death rate of the system.
 module OneType
 
 include("MainFunctions.jl")
-
 import .Gillespie
 
 export modelsetup, rungillespie,
@@ -33,7 +32,7 @@ function modelsetup(name::AbstractString,execute::Function)
         "YuleAcc","LinearAcc","LogisticAcc","ImmigrationAcc"]
         return (
             name = name,
-            rates! = getfield(BirthDeath,Symbol(string(name,"Rates!"))),
+            rates! = getfield(OneType,Symbol(string(name,"Rates!"))),
             execute! = execute
             )
     else
@@ -153,11 +152,18 @@ execute_resc(i,ps,pr) = execute_diff(i,ps,1/pr.K,pr)
 setuprates(birthrate) = Vector{typeof(birthrate)}(undef,2)
 setuphistory(time,n₀) = zeros(typeof(n₀),length(time))
 
-rungillespie(t,n_0,par,conf) = Gillespie.run_gillespie(
-    t,n_0,par,
-    conf.execute!,conf.rates!
-    setuprates(par.birth),
-    setuphistory(t,n_0)
-    )
+function rungillespie(t,n_0,par,conf)
+    #setup empty history
+    population_history = setuphistory(t,n_0)
+    #execute simulation
+    Gillespie.run_gillespie!(
+        t,n_0,par,
+        conf.execute!,conf.rates!,
+        setuprates(par.birth),
+        population_history
+        )
+
+    return population_history
+end
 
 end #end of module

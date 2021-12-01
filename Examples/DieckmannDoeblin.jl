@@ -38,7 +38,7 @@ history = InfiniteTypes.rungillespie(
         x0,
         n_x0,
         model_parameter,
-        rescaled = true,
+        #rescaled = true,
 )
 #plot simulation
 PlotFromDicts.plotTSS(history)

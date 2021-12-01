@@ -84,7 +84,7 @@ function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Vector},time)
 end
 
 function saveonestep!(pop_hist,index,ps,time)
-    view(pop_hist,index,:) .= n0
+    view(pop_hist,index,:) .= ps
 end
 
 

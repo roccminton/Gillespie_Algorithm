@@ -41,13 +41,13 @@ history = Multitype.rungillespie(t,n_0,model_parameter)
 #execute a rescaled version of the simulation
 history_res10 = Multitype.rungillespie(
         t,n_0,
-        (model_parameter...,K=100.0),
+        (model_parameter...,K=10.0),
         rescaled=true
         )
 #execute a rescaled version of the simulation
 history_res100 = Multitype.rungillespie(
         t,n_0,
-        (model_parameter...,K=1000.0),
+        (model_parameter...,K=100.0),
         rescaled=true
         )
 

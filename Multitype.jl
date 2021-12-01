@@ -13,28 +13,34 @@ module Multitype
 export rates!, execute!, rungillespie
 
 include("MainFunctions.jl")
-import .Gillespie: run_gillespie
+import .Gillespie
+
 using NamedTupleTools
 
 setuprates(birthrate::Vector) = Matrix{eltype(birthrate)}(undef,(2,length(birthrate)))
 setuphistory(time,n₀::Vector) = zeros(eltype(n₀),(length(time),length(n₀)))
 
 function rungillespie(time,n₀,par;rescaled=false)
+    #setup empty population history
+    population_history = setuphistory(time,n₀)
     if rescaled
-        Gillespie.run_gillespie(
+        Gillespie.run_gillespie!(
             time,n₀,
             generaterescaledparam(par),
             execute!,rates!,
             setuprates(par.birth),
-            setuphistory(time,n₀)
+            population_history
             )
     else
-        Gillespie.run_gillespie(
+        Gillespie.run_gillespie!(
             time,n₀,
             (par...,diff=one(eltype(n₀))),
-            execute!,rates!
+            execute!,rates!,
+            setuprates(par.birth),
+            population_history
             )
     end
+    return population_history
 end
 
 function generaterescaledparam(par)
