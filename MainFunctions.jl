@@ -24,9 +24,15 @@ function run_gillespie!(time,n₀,par,execute!,rates!,initrates,population_histo
         execute!,
         rates!
     )
-    
+
 end
 
+"""
+    mainiteration!
+
+    For OneType model where the population state is a number and
+    the population history is a vector.
+"""
 function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
     #run simulation
     @showprogress for (index,step) in enumerate(time)
@@ -39,14 +45,19 @@ function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
     end
 end
 
-function mainiteration!(pop_hist,rates,n0::Dict,ct,time,par,ex!,r!)
+"""
+    mainiteration!
+
+    For models where population states are dictionaries (or vectors) with the traits as
+    keys and the subpopulation size as values. Here the population history is
+    itselfe a dictionary with the same keys and the individual subpopulation
+    history as a vector for every trait.
+"""
+function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #save one step evolution
-        for (x,vₓ) in n0
-            !haskey(pop_hist,x) && (pop_hist[x] = zeros(eltype(valtype(pop_hist)),length(time)))
-            pop_hist[x][index] = vₓ[1]
-        end
+        saveonestep!(pop_hist,index,n0,time)
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
@@ -54,17 +65,28 @@ function mainiteration!(pop_hist,rates,n0::Dict,ct,time,par,ex!,r!)
     end
 end
 
-function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
-    #run simulation
-    @showprogress for (index,step) in enumerate(time)
-        #save one step evolution
-        view(pop_hist,index,:) .= n0
-        #execute one step of the simulation
-        ct = onestep!(n0,rates,ct,step,par,ex!,r!)
-        #check if step was completed or evolution stopped inbetween
-        @fastmath step-ct > 0.0 && break
+function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Number},time)
+    for (x,nₓ) in ps
+        #if the trait x is new to the population setup an empty history
+        !haskey(pop_hist,x) && (pop_hist[x] = zeros(valtype(ps),length(time)))
+        #add the population history for the given trait
+        pop_hist[x][index] = nₓ
     end
 end
+
+function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Vector},time)
+    for (x,vₓ) in ps
+        #if the trait x is new to the population setup an empty history
+        !haskey(pop_hist,x) && (pop_hist[x] = zeros(eltype(valtype(pop_hist)),length(time)))
+        #add the population history for the given trait
+        pop_hist[x][index] = vₓ[1]
+    end
+end
+
+function saveonestep!(pop_hist,index,ps,time)
+    view(pop_hist,index,:) .= n0
+end
+
 
 """
 Executes one step of the evolution by modifying `x_0` and `rates`.
@@ -112,6 +134,21 @@ function onestep!(x_0::Real,rates::Vector,t_0,t_end,par,ex!,r!)
         x_0 = ex!(i,x_0,par)
     end
     return t_0, x_0
+end
+
+function onestep!(x_0::Dict,rates::Vector,t_0,t_end,par,ex!,r!)
+    while t_0 ≤ t_end
+        r!(rates,x_0,par)
+        #choose next event and event time
+        i, dt = nexteventandtime(rates)
+        #Population in absorbing state
+        iszero(i) && break
+        #update time
+        t_0 += dt
+        #execute event
+        ex!(i,x_0,par)
+    end
+    return t_0
 end
 
 """
