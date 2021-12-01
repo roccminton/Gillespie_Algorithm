@@ -14,7 +14,8 @@ Trying to approximate the trait space and the mutation measure in a discrete man
 the approximation is good. Moreover in most of the cases mutation rates are small such that only a small number of different traits
 is alive at any given time.
 
-This implementation is ment to be versitile and fast. The biggest problem at the moment is memory allocation.
+This implementation is ment to be versitile and fast. But at the moment unfortunately it is very slow and consumes an enourmouse amount of memory allocations.
 
-Currently only the usual implementation of Gillespies algorithm is working. Hence where one knows the number of types in advance.
-You can find examples of birth and death processes (where there are no traits - only the population size is tracked) in the example folder.
+The MainFunctions.jl file holds the module Gillespie. There the iteration happens. The other files OneType.jl, MultiType.jl, InfiniteTypes.jl and DiploidModel.jl hold the rate and execute functions for the respective models.
+
+Esapcially the DiploidModel and InfiniteTypes Modules are of interst, since they differ the most from usual implementations of Gillespies Algorithm that I know.
