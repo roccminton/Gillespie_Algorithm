@@ -92,7 +92,7 @@ end
 """
     Sum of all healty individual in the population state ps
 """
-npropagable(ps) = sum(x.ispropagable && nₓ for (x,nₓ) in ps)
+npropagable(ps) = sum(x.ispropagable ? nₓ : 0 for (x,nₓ) in ps)
 
 """
     function rates!(rates,ps,par)
@@ -132,13 +132,14 @@ function choosecouple!(rndm, ps, par)
 end
 
 function choosefey(ps,pop_size)
-    #make it a uniform random variable in (0,total_rate)
+    #make it a uniform random variable in (0,pop_size)
     rndm = rand(Uniform(0.0,pop_size))
     #choose the rate at random
     for (x, nₓ) in ps
         rndm -= nₓ
         rndm ≤ 0.0 && return x
     end
+    return collect(keys(ps))[end]
 end
 
 function offspring!(par, n_mut)

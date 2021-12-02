@@ -198,6 +198,7 @@ function chooseevent(rates,total_rate)
         rndm -= rate
         rndm ≤ 0.0 && return index
     end
+    return 0
 end
 
 function chooseevent(rates::Dict,total_rate)
@@ -210,6 +211,7 @@ function chooseevent(rates::Dict,total_rate)
             rndm ≤ 0.0 && return index, trait
         end
     end
+    return 0, zero(keytype(rates))
 end
 
 """
