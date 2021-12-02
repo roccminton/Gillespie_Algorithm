@@ -56,6 +56,8 @@ end
 function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
     #run simulation
     @showprogress for (index,step) in enumerate(time)
+        #clean up dictionary by deleting keys with value zero
+        dropzeros!(n0)
         #save one step evolution
         saveonestep!(pop_hist,index,n0,time)
         #execute one step of the simulation
@@ -64,6 +66,23 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
         @fastmath step-ct > 0.0 && break
     end
 end
+
+function dropzeros!(ps::Dict{<:Any,<:Number})
+    for (x,nₓ) ∈ ps
+        iszero(nₓ) && delete!(ps,x)
+    end
+    nothing
+end
+
+function dropzeros!(ps::Dict{<:Any,<:Vector})
+    for (x,vₓ) ∈ ps
+        iszero(vₓ[1]) && delete!(ps,x)
+    end
+    nothing
+end
+
+dropzeros!(ps) = nothing
+
 
 function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Number},time)
     for (x,nₓ) in ps

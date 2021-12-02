@@ -211,7 +211,7 @@ function populationsize(history)
     return popsize
 end
 
-function mutationload(history::Dict)
+function mutationload(history)
     mutload = zeros(eltype(valtype(history)),length(collect(values(history))[1]))
     for (x,vₓ) in history
         mutload .+= sum(x.genes) .* vₓ
@@ -219,7 +219,7 @@ function mutationload(history::Dict)
     return mutload
 end
 
-function ill_individual(history::Dict)
+function ill_individual(history)
     ills = zeros(eltype(valtype(history)),length(collect(values(history))[1]))
     for (x,vₓ) in history
         ills .+= !x.ispropagable && vₓ
@@ -227,5 +227,14 @@ function ill_individual(history::Dict)
     return ills
 end
 
+function ndifferenttypes(history)
+    ntypes = zeros(Int,length(collect(values(history))[1]))
+    for (x,vₓ) in history
+        ntypes .+= isnotzero.(vₓ)
+    end
+    return ntypes
+end
+
+isnotzero(n) = !iszero(n)
 
 end  # end of module DiploidModel
