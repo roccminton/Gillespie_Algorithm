@@ -26,7 +26,7 @@ function rungillespie(time,n₀,model_parameter)
 
     #setup empty population history
     l = length(time)
-    population_history = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
+    population_history = Dict(x=>spzeros(valtype(n₀),l) for x in keys(n₀))
 
     #setup empty rates vector
     initrates = Vector{typeof(model_parameter.birth)}(undef,2)
@@ -92,7 +92,7 @@ end
 """
     Sum of all healty individual in the population state ps
 """
-npropagable(ps) = sum(x.ispropagable ? nₓ : 0 for (x,nₓ) in ps)
+npropagable(ps) = sum(x.ispropagable ? nₓ : zero(Int) for (x,nₓ) in ps)
 
 """
     function rates!(rates,ps,par)

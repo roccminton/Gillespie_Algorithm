@@ -3,6 +3,7 @@ module Gillespie
 using Random
 using Distributions
 using ProgressMeter
+using SparseArrays
 
 """
         run_gillespie(time::AbstractVector,n₀,par::Parameter)
@@ -12,6 +13,7 @@ Run a exact stochastic simulation over the Interval time with an initial Populat
 is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
+
 function run_gillespie!(time,n₀,par,execute!,rates!,initrates,population_history)
 
     mainiteration!(
@@ -63,7 +65,7 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
-        @fastmath step-ct > 0.0 && break
+        @fastmath step-ct > 0.0 && (stop!(pop_hist,index,n0,time); break)
     end
 end
 
@@ -83,11 +85,10 @@ end
 
 dropzeros!(ps) = nothing
 
-
 function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Number},time)
     for (x,nₓ) in ps
         #if the trait x is new to the population setup an empty history
-        !haskey(pop_hist,x) && (pop_hist[x] = zeros(valtype(ps),length(time)))
+        !haskey(pop_hist,x) && (pop_hist[x] = spzeros(valtype(ps),length(time)))
         #add the population history for the given trait
         pop_hist[x][index] = nₓ
     end
@@ -106,11 +107,17 @@ function saveonestep!(pop_hist,index,ps,time)
     view(pop_hist,index,:) .= ps
 end
 
+function stop!(pop_hist,index,n0,time)
+    for i ∈ index+1:length(time)
+        saveonestep!(pop_hist,i,n0,time)
+    end
+    nothing
+end
 
 """
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
-function onestep!(x_0,rates::Matrix,t_0,t_end,par,ex!,r!)
+function onestep!(x_0,rates,t_0,t_end,par,ex!,r!)
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
