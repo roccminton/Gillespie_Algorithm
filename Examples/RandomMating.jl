@@ -11,7 +11,7 @@ function run()
         d = 0.9
         c = (b-d)/(2K)
 
-        dni = 0.1
+        dni = 0.5
         N = 100
 
         model_parameter = (
