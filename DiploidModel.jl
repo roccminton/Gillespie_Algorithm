@@ -34,7 +34,7 @@ function rungillespie(time,n₀,model_parameter)
     #execute simulation
     Gillespie.run_gillespie!(
         time,n₀,
-        setupparameter(model_parameter,n₀),
+        setupparameter(model_parameter,n₀,l),
         execute!,
         rates!,
         initrates,
@@ -48,7 +48,7 @@ end
 generatehealthypopulation(popsize,Nloci) = Dict(RandomIndividual(Nloci) => popsize)
 
 
-setupparameter(par,n0) = (
+setupparameter(par,n0,historylength) = (
     par...,
     rndm = rand(2),
     MutationsPerBirth = Poisson(par.μ),
@@ -56,7 +56,8 @@ setupparameter(par,n0) = (
     parent1 = spzeros(Int8,par.Nloci),
     parent2 = spzeros(Int8,par.Nloci),
     offspring = spzeros(Int8,par.Nloci),
-    popsize = [sum(values(n0)),npropagable(n0)]
+    popsize = [sum(values(n0)),npropagable(n0)],
+    historylength = historylength
     )
 
 
@@ -92,7 +93,13 @@ end
 """
     Sum of all healty individual in the population state ps
 """
-npropagable(ps) = sum(x.ispropagable ? nₓ : zero(Int) for (x,nₓ) in ps)
+function npropagable(ps)
+    if !isempty(ps)
+        return sum(x.ispropagable ? nₓ : zero(valtype(ps)) for (x,nₓ) in ps)
+    else
+        return zero(valtype(ps))
+    end
+end
 
 """
     function rates!(rates,ps,par)
@@ -139,7 +146,8 @@ function choosefey(ps,pop_size)
         rndm -= nₓ
         rndm ≤ 0.0 && return x
     end
-    return collect(keys(ps))[end]
+    #return any key if iteration runs trough
+    return findfirst(x->true,ps)
 end
 
 function offspring!(par, n_mut)
@@ -204,37 +212,118 @@ end
     Get the population size process from the history dictionary
 """
 function populationsize(history)
-    popsize = zeros(eltype(valtype(history)),length(collect(values(history))[1]))
+    popsize = zeros(eltype(valtype(history)),length(last(first(history))))
     for (x,vₓ) in history
         popsize .+= vₓ
     end
     return popsize
 end
 
-function mutationload(history)
-    mutload = zeros(eltype(valtype(history)),length(collect(values(history))[1]))
+function abs_mutationload(history)
+    mutload = zeros(eltype(valtype(history)),length(last(first(history))))
     for (x,vₓ) in history
         mutload .+= sum(x.genes) .* vₓ
     end
     return mutload
 end
 
-function ill_individual(history)
-    ills = zeros(eltype(valtype(history)),length(collect(values(history))[1]))
+function abs_ill_individual(history)
+    ills = zeros(eltype(valtype(history)),length(last(first(history))))
     for (x,vₓ) in history
         ills .+= !x.ispropagable && vₓ
     end
     return ills
 end
 
+function rescale!(res_quantity,abs_quantity,abs_size)
+    for (i,(x,y)) in enumerate(zip(abs_quantity,abs_size))
+        res_quantity[i] = y > zero(eltype(abs_size)) ? x/y : zero(eltype(res_quantity))
+    end
+    nothing
+end
+
+function rescale!(abs_quantity,abs_size)
+    rescale!(abs_quantity,abs_quantity,abs_size)
+    nothing
+end
+
+function rescale(abs_quantity,abs_size)
+    res_quantity = zeros(length(abs_quantity))
+    rescale!(res_quantity,abs_quantity,abs_size)
+    return res_quantity
+end
+
 function ndifferenttypes(history)
-    ntypes = zeros(Int,length(collect(values(history))[1]))
+    ntypes = zeros(Int,length(last(first(history))))
     for (x,vₓ) in history
         ntypes .+= isnotzero.(vₓ)
     end
     return ntypes
 end
 
+function rel_mutation_distribution(history)
+    #get any dictionary entry
+    x,vₓ = first(history)
+    mutations_per_time = [zeros(length(x.genes)) for _ in 1:length(vₓ)]
+
+    for (x,vₓ) in history
+    	for (time,nₓ) in zip(findnz(vₓ)...)
+    		for (site,mut) in zip(findnz(x.genes)...)
+    			mutations_per_time[time][site] += mut * nₓ
+    		end
+    	end
+    end
+
+    mutations_per_time ./= populationsize(history)
+
+    return mutations_per_time
+end
+
+
 isnotzero(n) = !iszero(n)
+
+function timesfromswitches(totaltime,switches)
+    times = Vector{typeof(totaltime)}(undef,length(switches)+1)
+    tstart = 1
+    for (i,t) in enumerate(switches)
+        tend = findfirst(x -> x≥t,totaltime)
+        times[i] = totaltime[tstart:tend]
+        tstart = tend
+    end
+    times[end] = totaltime[tstart:end]
+    return times
+end
+
+function runseveralgillespie(totaltime,switch::Vector,x0,parameters)
+    #setup empty population history
+    l = length(totaltime)
+    population_history = Dict(x=>spzeros(valtype(x0),l) for x in keys(x0))
+    #save initial population
+    for (x,nₓ) in x0
+        #add the population history for the given trait
+        population_history[x][1] = nₓ
+    end
+    #setup empty rates vector
+    initrates = Vector{typeof(parameters[1].birth)}(undef,2)
+    #switching times
+    times = timesfromswitches(totaltime,switch)
+    #execute simulation
+    for (i,t) in enumerate(times)
+        Gillespie.run_gillespie!(
+            t,x0,
+            setupparameter(parameters[i],x0,l),
+            execute!,
+            rates!,
+            initrates,
+            population_history,
+            hstart = t[1]
+            )
+    end
+    return population_history
+end
+
+function runseveralgillespie(totaltime,switch::Number,x0,parameters)
+    return runseveralgillespie(totaltime,[switch],x0,parameters)
+end
 
 end  # end of module DiploidModel
