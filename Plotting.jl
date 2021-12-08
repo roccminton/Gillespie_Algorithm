@@ -10,6 +10,7 @@ import .DiploidModel
 
 using Plots
 using Measures
+using Statistics
 
 export plotTSS
 
@@ -52,7 +53,7 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		framestyle = :zerolines,
     	)
 	#plot Prevalence
-	prevalence = DiploidModel.ill_individual(history) ./ popsize
+	prevalence = DiploidModel.rescale(DiploidModel.abs_ill_individual(history),popsize)
 	prevmax = ceil(Integer,maximum(prevalence)*100)/100
 	plot!(twinx(),prevalence,
 		label = "", grid = false,
@@ -69,7 +70,7 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		showaxis = false
  	   )
 	#plot mutation load
-	mutationload = DiploidModel.mutationload(history) ./ popsize
+	mutationload = DiploidModel.rescale(DiploidModel.abs_mutationload(history),popsize)
 	maxload = ceil(Integer,maximum(mutationload))
 	plot!(twinx(),mutationload,
 		label="",grid = false,
@@ -84,6 +85,44 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		showaxis = false
  	   )
 	vline!([time[end]],linewidth=1,color=:black,label="")
+end
+
+function mutationdistributiongif(history)
+	#clean data
+	total_mutations_per_time_rescaled = DiploidModel.rel_mutation_distribution(history)
+	populationsize = DiploidModel.populationsize(history)
+	#set maximum
+	m = ceil(maximum(maximum.(total_mutations_per_time_rescaled)),digits=2)
+	nLoci = length(first(first(history)).genes)
+
+	#resized time
+	time = range(1,nLoci; length=length(populationsize))
+
+	anim = @animate for (i,mutations) in enumerate(total_mutations_per_time_rescaled)
+		#plot population size in background
+		plot(
+			time,
+			populationsize,
+			legend=false,
+			color = :gray,
+			xticks = false,
+			yticks = false,
+			leftmargin = 10mm,
+			bottommargin = 10mm,
+			)
+		#add scatter to current population size
+		scatter!([time[i]],[populationsize[i]],color=:red)
+		#add scatter plot of gene distribution
+		bar!(
+			twinx(),mutations,
+			ylim=(0,m),ymirror = false,
+			label="Load per Locus",
+			xlabel = "Loci"
+			)
+		#add mean mutation load per gene
+		hline!([mean(mutations)],color=:red,label="mean")
+	end
+	return anim
 end
 
 end #end of Module PlotFromDicts

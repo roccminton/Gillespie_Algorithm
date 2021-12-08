@@ -14,7 +14,7 @@ is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
 
-function run_gillespie!(time,n₀,par,execute!,rates!,initrates,population_history)
+function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,population_history;hstart=0) where {F1,F2}
 
     mainiteration!(
         population_history,
@@ -24,7 +24,8 @@ function run_gillespie!(time,n₀,par,execute!,rates!,initrates,population_histo
         time,
         par,
         execute!,
-        rates!
+        rates!,
+        hstart
     )
 
 end
@@ -35,11 +36,11 @@ end
     For OneType model where the population state is a number and
     the population history is a vector.
 """
-function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!,r!)
+function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!::F1,r!::F2,hstart) where {F1,F2}
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #save one step evolution
-        pop_hist[index] = n0
+        pop_hist[index+hstart] = n0
         #execute one step of the simulation
         ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
@@ -55,19 +56,25 @@ end
     itselfe a dictionary with the same keys and the individual subpopulation
     history as a vector for every trait.
 """
-function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!,r!)
+function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,hstart) where {F1,F2}
     #run simulation
     @showprogress for (index,step) in enumerate(time)
+        #move index
+        index += hstart
         #clean up dictionary by deleting keys with value zero
         dropzeros!(n0)
         #save one step evolution
-        saveonestep!(pop_hist,index,n0,time)
+        saveonestep!(pop_hist,index,n0,par)
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
-        @fastmath step-ct > 0.0 && (stop!(pop_hist,index,n0,time); break)
+        @fastmath step-ct > 0.0 && (stop!(pop_hist,index,n0,par); break)
     end
 end
+
+historylength(population_history::Vector,par) = length(population_history)
+
+historylength(population_history::Dict,par) = par.historylength
 
 function dropzeros!(ps::Dict{<:Any,<:Number})
     for (x,nₓ) ∈ ps
@@ -85,31 +92,31 @@ end
 
 dropzeros!(ps) = nothing
 
-function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Number},time)
+function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Number},par)
     for (x,nₓ) in ps
         #if the trait x is new to the population setup an empty history
-        !haskey(pop_hist,x) && (pop_hist[x] = spzeros(valtype(ps),length(time)))
+        !haskey(pop_hist,x) && (pop_hist[x] = spzeros(valtype(ps),historylength(pop_hist,par)))
         #add the population history for the given trait
         pop_hist[x][index] = nₓ
     end
 end
 
-function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Vector},time)
+function saveonestep!(pop_hist,index,ps::Dict{<:Any,<:Vector},par)
     for (x,vₓ) in ps
         #if the trait x is new to the population setup an empty history
-        !haskey(pop_hist,x) && (pop_hist[x] = zeros(eltype(valtype(pop_hist)),length(time)))
+        !haskey(pop_hist,x) && (pop_hist[x] = zeros(eltype(valtype(pop_hist)),historylength(pop_hist,par)))
         #add the population history for the given trait
         pop_hist[x][index] = vₓ[1]
     end
 end
 
-function saveonestep!(pop_hist,index,ps,time)
+function saveonestep!(pop_hist,index,ps,par)
     view(pop_hist,index,:) .= ps
 end
 
-function stop!(pop_hist,index,n0,time)
-    for i ∈ index+1:length(time)
-        saveonestep!(pop_hist,i,n0,time)
+function stop!(pop_hist,index,n0,par)
+    for i ∈ index+1:historylength(pop_hist,par)
+        saveonestep!(pop_hist,i,n0,par)
     end
     nothing
 end
@@ -117,7 +124,7 @@ end
 """
 Executes one step of the evolution by modifying `x_0` and `rates`.
 """
-function onestep!(x_0,rates,t_0,t_end,par,ex!,r!)
+function onestep!(x_0,rates,t_0,t_end,par,ex!::F1,r!::F2) where {F1,F2}
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
@@ -132,7 +139,7 @@ function onestep!(x_0,rates,t_0,t_end,par,ex!,r!)
     return t_0
 end
 
-function onestep!(x_0,rates::Dict,t_0,t_end,par,ex!,r!)
+function onestep!(x_0,rates::Dict,t_0,t_end,par,ex!::F1,r!::F2) where {F1,F2}
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
@@ -147,7 +154,7 @@ function onestep!(x_0,rates::Dict,t_0,t_end,par,ex!,r!)
     return t_0
 end
 
-function onestep!(x_0::Real,rates::Vector,t_0,t_end,par,ex!,r!)
+function onestep!(x_0::Real,rates::Vector,t_0,t_end,par,ex!::F1,r!::F2) where {F1,F2}
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
@@ -162,7 +169,7 @@ function onestep!(x_0::Real,rates::Vector,t_0,t_end,par,ex!,r!)
     return t_0, x_0
 end
 
-function onestep!(x_0::Dict,rates::Vector,t_0,t_end,par,ex!,r!)
+function onestep!(x_0::Dict,rates::Vector,t_0,t_end,par,ex!::F1,r!::F2) where {F1,F2}
     while t_0 ≤ t_end
         r!(rates,x_0,par)
         #choose next event and event time
