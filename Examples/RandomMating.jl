@@ -4,15 +4,12 @@ include("../Plotting.jl")
 import .DiploidModel
 import .PlotFromDicts
 
-function run()
-        K = 1000
+function run(N,dni)
+        K = 10_000
 
         b = 1.0
         d = 0.9
-        c = (b-d)/(2K)
-
-        dni = 0.5
-        N = 100
+        c = (b-d)/(K)
 
         model_parameter = (
                 birth = b,
@@ -31,6 +28,12 @@ function run()
         return history
 end
 
-history = run()
-#plot simulation
-PlotFromDicts.plotmutationloadandprevalence(history)
+N = 50
+
+for dni ∈ 1.2:-0.1:0.1
+        history = run(N,dni)
+        #plot simulation
+        PlotFromDicts.plotmutationloadandprevalence(history)
+        #safefig
+        savefig("PlotOutput/N=$N;dni=$dni.pdf")
+end
