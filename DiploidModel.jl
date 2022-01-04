@@ -18,6 +18,7 @@ module DiploidModel
 
 using SparseArrays
 using Distributions
+using DataFrames
 
 include("MainFunctions.jl")
 import .Gillespie
@@ -30,6 +31,13 @@ function rungillespie(time,n₀,model_parameter)
 
     #setup empty rates vector
     initrates = Vector{typeof(model_parameter.birth)}(undef,2)
+
+    #choose rates function
+    if haskey(model_parameter,:rates)
+        rates! = getfield(DiploidModel,Symbol(model_parameter.rates))
+    else
+        rates! = truerates!
+    end
 
     #execute simulation
     Gillespie.run_gillespie!(
@@ -47,7 +55,6 @@ end
 
 generatehealthypopulation(popsize,Nloci) = Dict(RandomIndividual(Nloci) => popsize)
 
-
 setupparameter(par,n0,historylength) = (
     par...,
     rndm = rand(2),
@@ -59,7 +66,6 @@ setupparameter(par,n0,historylength) = (
     popsize = [sum(values(n0)),npropagable(n0)],
     historylength = historylength
     )
-
 
 struct RandomIndividual{T <: Integer}
     genes :: SparseVector{Int8,T}
@@ -94,10 +100,11 @@ end
     Sum of all healty individual in the population state ps
 """
 function npropagable(ps)
+    null = zero(valtype(ps))
     if !isempty(ps)
-        return sum(x.ispropagable ? nₓ : zero(valtype(ps)) for (x,nₓ) in ps)
+        return sum(x.ispropagable ? nₓ : null for (x,nₓ) in ps)
     else
-        return zero(valtype(ps))
+        return null
     end
 end
 
@@ -108,13 +115,25 @@ end
         > ps is the population state as a sparse array
         > par is a named tuple with all relevant modle parameters
 """
-function rates!(rates, ps, par)
+function truerates!(rates, ps, par)
     #calculate total population size
     par.popsize[1] = sum(values(ps))
     #calculate size of propagable subpopulation
     par.popsize[2] = npropagable(ps)
     #linear birth for all propagable individuals
     rates[1] = par.birth * par.popsize[2]
+    #uniform logistic death
+    rates[2] = par.popsize[1] * par.death + par.popsize[1] * (par.popsize[1] - 1) * par.competition
+    nothing
+end
+
+function allbirthrates!(rates, ps, par)
+    #calculate total population size
+    par.popsize[1] = sum(values(ps))
+    #calculate size of propagable subpopulation for later use
+    par.popsize[2] = npropagable(ps)
+    #linear birth for all individuals regardles of disease status
+    rates[1] = par.birth * par.popsize[1]
     #uniform logistic death
     rates[2] = par.popsize[1] * par.death + par.popsize[1] * (par.popsize[1] - 1) * par.competition
     nothing
@@ -279,8 +298,38 @@ function rel_mutation_distribution(history)
     return mutations_per_time
 end
 
-
 isnotzero(n) = !iszero(n)
+
+function historytodataframe(t,Nloci,history)
+    l = length(t)
+    df = DataFrame(
+        time=t,
+        PopSize=populationsize(history),
+        Ill=abs_ill_individual(history),
+        Mutation=abs_mutationload(history),
+        NumTypes=ndifferenttypes(history),
+        )
+    #generate empty mutation history
+    mutationhistory = [zeros(Int,l) for _ in 1:Nloci]
+    #fill mutation history
+    for (x,vₓ) in history
+        config = findnz(x.genes)
+        timeandsize = findnz(vₓ)
+        #iterate over all loci that hold mutations
+        for (locus,nmut) in zip(first(config),last(config))
+            #iterate over history of that type
+            for (row,size) in zip(first(timeandsize),last(timeandsize))
+                mutationhistory[locus][row] = nmut*size
+            end
+        end
+    end
+    #save mutation history
+    for n in 1:Nloci
+        df[!,"$n"] = mutationhistory[n]
+    end
+
+    return df
+end
 
 function timesfromswitches(totaltime,switches)
     times = Vector{typeof(totaltime)}(undef,length(switches)+1)
