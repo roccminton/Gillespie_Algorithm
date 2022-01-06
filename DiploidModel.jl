@@ -319,7 +319,7 @@ function historytodataframe(t,Nloci,history)
         for (locus,nmut) in zip(first(config),last(config))
             #iterate over history of that type
             for (row,size) in zip(first(timeandsize),last(timeandsize))
-                mutationhistory[locus][row] = nmut*size
+                mutationhistory[locus][row] += nmut*size
             end
         end
     end
