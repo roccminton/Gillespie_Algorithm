@@ -1,13 +1,13 @@
-include("../DiploidModel.jl")
+include("../DiploidModel2.jl")
 include("../Plotting.jl")
 
-import .DiploidModel
+import .DiploidModel2
 import .PlotFromDicts
 
 using Plots
 using CSV
 
-function run_constpopsize_simulation(N,dni,K,tend)
+function execute_once(N,dni,K,tend)
 
         b = 1.0
         d = 0.9
@@ -18,34 +18,44 @@ function run_constpopsize_simulation(N,dni,K,tend)
                 competition = (b-d)/K,
                 μ = dni,
                 Nloci = N,
+                K = K,
                 rates = "allbirthrates!"
         )
 
         t = 0:tend
-        x0 = DiploidModel.generatehealthypopulation(K,N)
+        x0 = DiploidModel2.generatehealthypopulation(K)
 
         #execute the simulation
-        history = DiploidModel.rungillespie(t,x0,parameter)
+        return DiploidModel2.rungillespie(t,x0,parameter)
+end
 
-        abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
-        filename = "K=$K,dni=$dni,Nloci=$N"
+function execute_and_mean(dni,N,K,tend,n)
+        hs = [execute_once(dni,N,K,tend) for _ in 1:n]
+        return Dict(
+                k => [
+                        mean(hs[i][k][t] for i ∈ 1:n)
+                for t ∈ 1:tend+1]
+        for k in keys(hs[1]))
+end
+
+function save_data(abs_path,filename,history,t)
         #convert simulation to DataFrame
         CSV.write(
                 abs_path * "Data/" *filename,
-                DiploidModel.historytodataframe(t,N,history)
+                DiploidModel2.historytodataframe(t,history)
         )
+end
 
+function safe_plot(abs_path,filename,history)
         #plot simulation
-        PlotFromDicts.plotmutationloadandprevalence(history)
+        PlotFromDicts.plotmutationloadandprevalence(
+                history["PopSize"],
+                history["Ill"] ./ history["PopSize"],
+                history["ML"] ./ history["PopSize"])
         #savefig
         savefig(abs_path*"Plots/"*filename*".pdf")
 end
 
-function run_forN10to100(dni)
-        K = 10_000
-        tend = 10_000
-
-        for N = 10:10:100
-                run_constpopsize_simulation(N,dni,K,tend)
-        end
-end
+#abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
+abs_path = "/Users/roccminton/Documents/Uni/Gillespie_Algorithm/Output/"
+filename = "K=$K,dni=$dni,Nloci=$N"

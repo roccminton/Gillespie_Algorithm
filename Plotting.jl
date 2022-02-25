@@ -30,8 +30,7 @@ function plotTSS(history,time=0:length(collect(values(history))[1])-1)
 	return p
 end
 
-function plotmutationloadandprevalence(history,time=0:length(collect(values(history))[1])-1)
-	popsize = DiploidModel.populationsize(history)
+function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(length(popsize)-1))
 	#setup plot
 	p = plot(size = (600,300),
 			rightmargin = 20mm,
@@ -53,7 +52,6 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		framestyle = :zerolines,
     	)
 	#plot Prevalence
-	prevalence = DiploidModel.rescale(DiploidModel.abs_ill_individual(history),popsize)
 	prevmax = ceil(Integer,maximum(prevalence)*100)/100
 	plot!(twinx(),prevalence,
 		label = "", grid = false,
@@ -70,7 +68,6 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		showaxis = false
  	   )
 	#plot mutation load
-	mutationload = DiploidModel.rescale(DiploidModel.abs_mutationload(history),popsize)
 	maxload = ceil(Integer,maximum(mutationload))
 	plot!(twinx(),mutationload,
 		label="",grid = false,
@@ -85,6 +82,14 @@ function plotmutationloadandprevalence(history,time=0:length(collect(values(hist
 		showaxis = false
  	   )
 	vline!([time[end]],linewidth=1,color=:black,label="")
+end
+
+function plotmutationloadandprevalence(history,time=0:length(collect(values(history))[1])-1)
+	plotmutationloadandprevalence(
+		DiploidModel.populationsize(history),
+		DiploidModel.rescale(DiploidModel.abs_ill_individual(history),popsize),
+		DiploidModel.rescale(DiploidModel.abs_mutationload(history),popsize),
+		time)
 end
 
 function mutationdistributiongif(history)

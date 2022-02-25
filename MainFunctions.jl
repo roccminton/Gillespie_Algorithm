@@ -39,8 +39,10 @@ end
 function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!::F1,r!::F2,hstart) where {F1,F2}
     #run simulation
     @showprogress for (index,step) in enumerate(time)
+        #move index
+        index += hstart
         #save one step evolution
-        pop_hist[index+hstart] = n0
+        saveonestep!(pop_hist,index,n0,par)
         #execute one step of the simulation
         ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
@@ -62,7 +64,7 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,hstart) whe
         #move index
         index += hstart
         #clean up dictionary by deleting keys with value zero
-        dropzeros!(n0)
+        #dropzeros!(n0)
         #save one step evolution
         saveonestep!(pop_hist,index,n0,par)
         #execute one step of the simulation
@@ -197,7 +199,7 @@ function nexteventandtime(rates)
     #Population in absorbing state if sum of rates is zero
     iszero(total_rate) && return 0, 0.0
     #sample next event time
-    dt = rand(Exponential(1 / (total_rate)))
+    dt = -(1/total_rate)*log(rand())
     #choose event
     i = chooseevent(rates,total_rate)
     return i, dt
@@ -209,7 +211,7 @@ function nexteventandtime(rates::Dict)
     #Population in absorbing state if sum of rates is zero
     iszero(total_rate) && return 0, zero(keytype(rates)), 0.0
     #sample next event time
-    dt = rand(Exponential(1 / (total_rate)))
+    dt = -(1/total_rate)*log(rand())
     #choose event
     i, trait = chooseevent(rates,total_rate)
     return i, trait, dt
@@ -225,7 +227,7 @@ the evolution continue. The maximum number of tries is set by `max_try=1000`.
 """
 function chooseevent(rates,total_rate)
     #make it a uniform random variable in (0,total_rate)
-    rndm = rand(Uniform(0.0,total_rate))
+    rndm = rand()*total_rate
     #choose the rate at random
     @inbounds for (index, rate) in enumerate(rates)
         rndm -= rate
@@ -236,7 +238,7 @@ end
 
 function chooseevent(rates::Dict,total_rate)
     #make it a uniform random variable in (0,total_rate)
-    rndm = rand(Uniform(0.0,total_rate))
+    rndm = rand()*total_rate
     #choose the rate at random
     for (trait, rate) in rates
         for (index,r) in enumerate(rate)

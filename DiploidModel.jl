@@ -19,6 +19,7 @@ module DiploidModel
 using SparseArrays
 using Distributions
 using DataFrames
+using Random
 
 include("MainFunctions.jl")
 import .Gillespie
@@ -43,7 +44,7 @@ function rungillespie(time,n₀,model_parameter)
     Gillespie.run_gillespie!(
         time,n₀,
         setupparameter(model_parameter,n₀,l),
-        execute!,
+        execute_rand!,
         rates!,
         initrates,
         population_history
@@ -55,6 +56,7 @@ end
 
 generatehealthypopulation(popsize,Nloci) = Dict(RandomIndividual(Nloci) => popsize)
 
+
 setupparameter(par,n0,historylength) = (
     par...,
     rndm = rand(2),
@@ -62,7 +64,8 @@ setupparameter(par,n0,historylength) = (
     MutationLocation = DiscreteUniform(1,par.Nloci),
     parent1 = spzeros(Int8,par.Nloci),
     parent2 = spzeros(Int8,par.Nloci),
-    offspring = spzeros(Int8,par.Nloci),
+    offspring = RandomIndividual(par.Nloci),
+    alltraits = collect(keys(n0)),
     popsize = [sum(values(n0)),npropagable(n0)],
     historylength = historylength
     )
@@ -85,15 +88,27 @@ RandomIndividual(N::Integer) = RandomIndividual(
 ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
 
 function isindictandadd!(d,x,diff)
-    isindict = false
-    for y in keys(d)
-        if y.genes == x
-            d[y] += diff
-            isindict = true
-            break
+    if haskey(d,x)
+        d[x] += diff
+    else
+        d[RandomIndividual(x.genes)] = diff
+    end
+    nothing
+end
+
+function isindictandadd!(d,x,diff,par)
+    if haskey(d,x)
+        d[x] += diff
+    else
+        indx = findfirst(y->y==x,par.alltraits)
+        if !isnothing(indx)
+            d[par.alltraits[indx]] = diff
+        else
+            push!(par.alltraits,RandomIndividual(x.genes))
+            d[par.alltraits[end]] = diff
         end
     end
-    !isindict && (d[RandomIndividual(x)] = diff)
+    nothing
 end
 
 """
@@ -129,9 +144,9 @@ end
 
 function allbirthrates!(rates, ps, par)
     #calculate total population size
-    par.popsize[1] = sum(values(ps))
+    #par.popsize[1] = sum(values(ps))
     #calculate size of propagable subpopulation for later use
-    par.popsize[2] = npropagable(ps)
+    #par.popsize[2] = npropagable(ps)
     #linear birth for all individuals regardles of disease status
     rates[1] = par.birth * par.popsize[1]
     #uniform logistic death
@@ -141,64 +156,57 @@ end
 
 function choosecouple!(rndm, ps, par)
     #make it a uniform random variable in (0,total_rate)
-    U = Uniform(0.0, par.popsize[2])
-    rndm[1] = rand(U)
-    rndm[2] = rand(U)
+    U = DiscreteUniform(0, par.popsize[2])
+    rndm[1] = rand!(U,rndm)
     #initiate
     searchparent1 = true
     searchparent2 = true
     #choose the rate at random
     for (x, nₓ) in ps
-        x.ispropagable && (rndm .-= nₓ)
-        searchparent1 && rndm[1] ≤ 0.0 && (par.parent1 .= x.genes; searchparent1 = false)
-        searchparent2 && rndm[2] ≤ 0.0 && (par.parent2 .= x.genes; searchparent2 = false)
+        if x.ispropagable && nₓ > 0
+            if searchparent1
+                rndm[1] -= nₓ
+                rndm[1] ≤ 0 && (par.parent1 .= x.genes; searchparent1 = false)
+            end
+            if searchparent2
+                rndm[2] -= nₓ
+                rndm[2] ≤ 0 && (par.parent2 .= x.genes; searchparent2 = false)
+            end
+        end
         !searchparent1 && !searchparent2 && break
     end
     nothing
 end
 
-function choosefey(ps,pop_size)
-    #make it a uniform random variable in (0,pop_size)
-    rndm = rand(Uniform(0.0,pop_size))
-    #choose the rate at random
-    for (x, nₓ) in ps
-        rndm -= nₓ
-        rndm ≤ 0.0 && return x
-    end
-    #return any key if iteration runs trough
-    return findfirst(x->true,ps)
-end
-
 function offspring!(par, n_mut)
     #randomly recombine the parental genetic information
-    par.offspring .= choose.(par.parent1, par.parent2)
+    par.offspring.genes .= choose.(par.parent1, par.parent2)
     #add n_mut mutations to random positions mutation
-    for _ = 1:n_mut
-        mutate!(par, rand(par.MutationLocation))
+    #if there are no mutations to add skip the mutation process
+    if n_mut > 0
+        for _ in 1:n_mut
+            mutate!(par,rand(par.MutationLocation))
+        end
     end
     nothing
 end
 
-function mutate!(par, location)
-    #add a mutation if no mutation is present
-    if par.offspring[location] == 0
-        par.offspring[location] = 1
-        #if there is already a mutation at the location choose at random if the same
-        #copy mutates again, hence nothing happens or the other site mutates
-    elseif par.offspring[location] == 1
-        par.offspring[location] = rand(Bool) ? 1 : 2
+function mutate!(par,location)
+    a = par.offspring.genes[location]
+    #if there are still mutations to add
+    if a < 2
+        #add a mutation if a=0 and if a=1 add a mutation with prob. 1/2
+        par.offspring.genes[location] = a*rand(Bool)+1
     end
 end
 
 function choose(i, j)
     if i == j == 0
         return 0
-    elseif (i == 0 && j == 1) || (i == 1 && j == 0)
+    elseif iszero(i*j)
         return rand(Bool) ? 0 : 1
-    elseif i == j == 1
-        return (rand(Bool) ? 1 : (rand(Bool) ? 0 : 2))
     else
-        error("Cannot couple genetic information $i and $j")
+        return (rand(Bool) ? 1 : (rand(Bool) ? 0 : 2))
     end
 end
 
@@ -208,11 +216,51 @@ function birth!(ps, par)
     dropzeros!(par.parent1); dropzeros!(par.parent2)
     #generate offsprings genetic configuration
     offspring!(par,rand(par.MutationsPerBirth))
+    #add the individual to the current population state dictionary
     isindictandadd!(ps,par.offspring,one(valtype(ps)))
+    #increase the population size and the number of propagable individuals
+    update_popsize!(par,ispropagable(par.offspring.genes),1)
+end
+
+function birth_rand!(ps,par)
+    pskeys = keys(ps)
+    par.parent1 .= rand(pskeys).genes
+    par.parent2 .= rand(pskeys).genes
+    #generate offsprings genetic configuration
+    offspring!(par,rand(par.MutationsPerBirth))
+    #add the individual to the current population state dictionary
+    isindictandadd!(ps,par.offspring,one(valtype(ps)))
+    #increase the population size and the number of propagable individuals
+    update_popsize!(par,ispropagable(par.offspring.genes),1)
+end
+
+function update_popsize!(par,isprop,diff)
+    par.popsize[1] += diff
+    isprop && (par.popsize[2] += diff)
 end
 
 function death!(ps, par)
-    ps[choosefey(ps,par.popsize[1])] -= one(valtype(ps))
+    #make it a uniform random variable in (0,pop_size)
+    rndm = rand(DiscreteUniform(0,par.popsize[1]))
+    #choose the rate at random and substract from population state dictionary
+    for (x, nₓ) in ps
+        if nₓ > 0
+            rndm -= nₓ
+            if rndm ≤ 0
+                ps[x] -= one(valtype(ps))
+                update_popsize!(par,x.ispropagable,-1)
+                break
+            end
+        end
+    end
+    nothing
+end
+
+function death_rand!(ps,par)
+    fey = rand(keys(ps))
+    ps[fey] -= one(valtype(ps))
+    update_popsize!(par,fey.ispropagable,-1)
+    nothing
 end
 
 function execute!(i,ps,par)
@@ -220,6 +268,16 @@ function execute!(i,ps,par)
         birth!(ps,par)
     elseif i == 2
         death!(ps,par)
+    else
+        error("Unknown event index: $i")
+    end
+end
+
+function execute_rand!(i,ps,par)
+    if i == 1
+        birth_rand!(ps,par)
+    elseif i == 2
+        death_rand!(ps,par)
     else
         error("Unknown event index: $i")
     end
