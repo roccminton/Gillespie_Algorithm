@@ -48,14 +48,20 @@ end
 
 function safe_plot(abs_path,filename,history)
         #plot simulation
-        PlotFromDicts.plotmutationloadandprevalence(
-                history["PopSize"],
-                history["Ill"] ./ history["PopSize"],
-                history["ML"] ./ history["PopSize"])
+        plot_MLP(history)
         #savefig
         savefig(abs_path*"Plots/"*filename*".pdf")
 end
 
+filename(K,dni,N) = "K=$K,dni=$dni,Nloci=$N"
+
+plot_MLP(history) = PlotFromDicts.plotmutationloadandprevalence(
+                history["PopSize"],
+                history["Ill"] ./ history["PopSize"],
+                history["ML"] ./ history["PopSize"])
+
 #abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
 abs_path = "/Users/roccminton/Documents/Uni/Gillespie_Algorithm/Output/"
-filename = "K=$K,dni=$dni,Nloci=$N"
+
+#history = execute_once(10,1.0,10_000,500)
+plot_MLP(history)

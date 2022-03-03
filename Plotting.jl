@@ -30,6 +30,43 @@ function plotTSS(history,time=0:length(collect(values(history))[1])-1)
 	return p
 end
 
+function plotMLPoverX(ML,P,X)
+	p = plot(size = (600,300),
+			rightmargin = 20mm,
+			leftmargin = 15mm,
+			topmargin = 5mm,
+			bottommargin = 5mm,
+			title = "",
+			titlefontsize = 8,
+			titleposition=:left
+			)
+	plotMLPoverX!(p,ML,P,X)
+	return p
+end
+
+function plotMLPoverX!(p,ML,P,X)
+	plot!(p,X,P,
+		label = "", grid = false,
+		color = :orange,
+		ylabel = "Prevalence",
+		ylim = (0,maximum(P)*1.01),
+		framestyle = :zerolines,
+	   )
+	#plot mutation load
+	maxload = ceil(Integer,maximum(ML))
+	plot!(twinx(),X,ML,
+		label="",grid = false,
+		color=:red,
+		#ymirror = false,
+		ylabel = "Mutation Load",
+		ylim = (0,ceil(Integer,maximum(ML))),
+		xticks = false,
+		framestyle = :zerolines,
+		showaxis = false
+	   )
+	 vline!(p,[X[end]],linewidth=1,color=:black,label="")
+end
+
 function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(length(popsize)-1))
 	#setup plot
 	p = plot(size = (600,300),
