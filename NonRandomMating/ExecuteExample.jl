@@ -64,7 +64,8 @@ function get_equilibrium(Ns,dnis,Ks,tend)
                 println("Currently at N=$N,dni=$dni,K=$K")
                 row = [N,dni,K]
                 #number of runs depend on average size
-                n = ceil(Int,100_000/K)
+                #n = ceil(Int,100_000/K)
+                n=5
                 history=execute_and_mean(dni,N,K,tend,n)
                 popsize = averageoverlast(history,"PopSize",last)
                 push!(row,popsize)
@@ -84,15 +85,20 @@ get_equilibrium(Ns,dnis,Ks::Number,tend) = get_equilibrium(Ns,dnis,[Ks,],tend)
 
 #----------------
 
-Ns = vcat(1:10,15:5:50,60:10:100)
+Ns = vcat(1:100,110:10:200,250:50:500,500:100:1000,2000:1000:10000,10000:5000:50000,60000:10000:100000)
 dnis = 0.1:0.1:1.2
 Ks = vcat(100:100:1_000,1_500:500:10_000,11_000:1_000:50_000,55_000:5_000:100_000)
 
-history = get_equilibrium(Ns,dnis,Ks,100)
+K = 10_000
+dni = 1.0
+
+history = get_equilibrium(Ns,dnis,10_000,100)
 
 abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
+#filename = "K=$(Ks[1])-$(Ks[end]),dni=$(dnis[1])-$(dnis[end]),N=$(Ns[1])-$(Ns[end])"
+filename = "K=$(K),dni=$(dnis[1])-$(dnis[end]),N=$(Ns[1])-$(Ns[end])"
 #safe DataFrame
 CSV.write(
-        abs_path * "Data/" * "K=$(Ks[1])-$(Ks[end]),dni=$(dnis[1])-$(dnis[end]),N=$(Ns[1])-$(Ns[end])",
+        abs_path * "Data/" * filename,
         history
 )

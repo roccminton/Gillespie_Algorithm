@@ -49,26 +49,54 @@ function rungillespie(time,n₀,model_parameter)
 
 end
 
-generatehealthypopulation(popsize) = Dict(
-    "PopSize" => popsize,
-    "Ill" => 0,
-    "ML" => 0
-    )
+generatehealthypopulation(popsize) = initpopulation(popsize,0,0)
+
+function initpopulation(popsize,ML,Ill)
+    if ML >= 2*Ill
+        return Dict(
+            "PopSize" => popsize,
+            "Ill" => Ill,
+            "ML" => ML
+            )
+    else
+        error("Mutation Load ($ML) must be at least twice the number of ill individual($Ill)")
+    end
+end
 
 setupparameter(par,n0,historylength) = (
     par...,
     rndm = Vector{Int}(undef,2),
     MutationsPerBirth = Poisson(par.μ),
     MutationLocation = DiscreteUniform(1,par.Nloci),
-    traits = [spzeros(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))],
+    traits = inittraitsfromdict(par,n0),
     indices = Dict(
-        "healthy" => collect(1:n0["PopSize"]),
-        "ill" => Vector{Int}(undef,0),
+        "healthy" => collect(n0["Ill"]+1:n0["PopSize"]),
+        "ill" => collect(1:n0["Ill"]),
         "free" => collect(n0["PopSize"]+1:round(Int,par.K + sqrt(par.K)))
 
     ),
     historylength = historylength
     )
+
+function inittraitsfromdict(par,n0)
+    locs = 1:par.Nloci
+    traits = [spzeros(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
+    for i in 1:n0["Ill"]
+        l = rand(locs)
+        traits[i][l] = 2
+    end
+    individuals = n0["Ill"]+1:n0["PopSize"]
+    for i in n0["Ill"]+1:n0["ML"]-2*n0["Ill"]
+        ind = rand(individuals)
+        l = rand(locs)
+        while traits[ind][l] ≠ 0
+            ind = rand(individuals)
+            l = rand(locs)
+        end
+        traits[ind][l] = 1
+    end
+    return traits
+end
 
 ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
 

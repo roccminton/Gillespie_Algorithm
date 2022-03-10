@@ -8,6 +8,11 @@ using Plots
 using CSV
 
 function execute_once(N,dni,K,tend)
+        x0 = DiploidModel2.generatehealthypopulation(K)
+        execute_once(N,dni,K,x0,tend)
+end
+
+function execute_once(N,dni,K,x0,tend)
 
         b = 1.0
         d = 0.9
@@ -23,11 +28,12 @@ function execute_once(N,dni,K,tend)
         )
 
         t = 0:tend
-        x0 = DiploidModel2.generatehealthypopulation(K)
 
         #execute the simulation
         return DiploidModel2.rungillespie(t,x0,parameter)
 end
+
+function execute_once(N,dni,K,x0,tend)
 
 function execute_and_mean(dni,N,K,tend,n)
         hs = [execute_once(dni,N,K,tend) for _ in 1:n]
