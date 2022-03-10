@@ -33,8 +33,6 @@ function execute_once(N,dni,K,x0,tend)
         return DiploidModel2.rungillespie(t,x0,parameter)
 end
 
-function execute_once(N,dni,K,x0,tend)
-
 function execute_and_mean(dni,N,K,tend,n)
         hs = [execute_once(dni,N,K,tend) for _ in 1:n]
         return Dict(
@@ -69,5 +67,16 @@ plot_MLP(history) = PlotFromDicts.plotmutationloadandprevalence(
 #abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
 abs_path = "/Users/roccminton/Documents/Uni/Gillespie_Algorithm/Output/"
 
-#history = execute_once(10,1.0,10_000,500)
+#-------
+
+N = 10
+dni = 0.8
+K = 10_000
+
+initML = floor(Integer,5*K)
+initIll = floor(Integer,0.5*K)
+
+x0 = DiploidModel2.initpopulation(K,initML,initIll)
+history = execute_once(N,dni,K,x0,500)
+
 plot_MLP(history)
