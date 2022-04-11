@@ -73,7 +73,6 @@ setupparameter(par,n0,historylength) = (
         "healthy" => collect(n0["Ill"]+1:n0["PopSize"]),
         "ill" => collect(1:n0["Ill"]),
         "free" => collect(n0["PopSize"]+1:round(Int,par.K + sqrt(par.K)))
-
     ),
     historylength = historylength
     )
