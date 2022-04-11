@@ -59,24 +59,26 @@ end
 
 filename(K,dni,N) = "K=$K,dni=$dni,Nloci=$N"
 
+replace_NaN(v) = map(x -> isnan(x) ? zero(x) : x, v)
+
 plot_MLP(history) = PlotFromDicts.plotmutationloadandprevalence(
                 history["PopSize"],
-                history["Ill"] ./ history["PopSize"],
-                history["ML"] ./ history["PopSize"])
+                replace_NaN(history["Ill"] ./ history["PopSize"]),
+                replace_NaN(history["ML"] ./ history["PopSize"]))
 
-#abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
-abs_path = "/Users/roccminton/Documents/Uni/Gillespie_Algorithm/Output/"
+abs_path = "/home/larocca/github/Gillespie_Algorithm/NonRandomMating/Output/ConstPopSize/"
+#abs_path = "/Users/roccminton/Documents/Uni/Gillespie_Algorithm/Output/"
 
 #-------
 
-N = 10
-dni = 0.8
+N = 1
+dni = 14
 K = 10_000
 
-initML = floor(Integer,5*K)
-initIll = floor(Integer,0.5*K)
+#initML = floor(Integer,5*K)
+#initIll = floor(Integer,0.5*K)
 
-x0 = DiploidModel2.initpopulation(K,initML,initIll)
-history = execute_once(N,dni,K,x0,500)
+#x0 = DiploidModel2.initpopulation(K,initML,initIll)
+history = execute_once(N,dni,K,100)
 
 plot_MLP(history)

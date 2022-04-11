@@ -3,6 +3,8 @@ Implementation of a simple Wright Fisher model with constant
 population size
 """
 
+module WrightFisher
+
 using Random
 using Distributions
 using ProgressMeter
@@ -75,7 +77,7 @@ oldnew(t) = isodd(t) ? (1, 2) : (2, 1)
 function onestep!(n0, par, t)
     old, new = oldnew(t)
     #create next generation
-    for child = 1:K
+    for child = 1:par.popsize(n0,par,t)
         birth!(n0, par, child, old, new)
     end
     #cut the index lists to smaller size if necessary
@@ -141,24 +143,9 @@ function mutate!(par, offspring_index, location, new)
     end
 end
 
+const_popsize(popsize,par,t) = par.K
+random_fluctuations(popsize,par,t) = round(Integer,rand(par.fluctuations))
+
+end # module WrightFisher
+
 #---
-
-#(constant) Population size
-K = 10000
-#Number of loci/genes
-N = 100
-#Number of Generations
-time = 1:1001
-#de novo mutation rate
-dni = 1.0
-#all individuals
-x0 = DiploidModel2.generatehealthypopulation(K)
-
-parameter = (μ = dni, Nloci = N, K = K)
-
-history = run_wrightfisher(time, x0, parameter)
-
-PlotFromDicts.plotmutationloadandprevalence(
-                history["PopSize"],
-                history["Ill"] ./ history["PopSize"],
-                history["ML"] ./ history["PopSize"])
