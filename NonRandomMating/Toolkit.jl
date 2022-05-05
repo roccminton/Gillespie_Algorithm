@@ -105,6 +105,12 @@ plot_MLP(history) = PlotFromDicts.plotmutationloadandprevalence(
                 history["PopSize"],
                 replace_NaN(history["Ill"] ./ history["PopSize"]),
                 replace_NaN(history["ML"] ./ history["PopSize"]))
+plot_MLP(df::DataFrame) = PlotFromDicts.plotmutationloadandprevalence(
+                df.PopSize,
+                replace_NaN(df.Ill ./ df.PopSize),
+                replace_NaN(df.Mutation ./ df.PopSize))
+
+
 """
 Generates new data averaging over the last entries for
 every key in the history dictionary.
