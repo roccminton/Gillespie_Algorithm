@@ -68,52 +68,61 @@ function plotMLPoverX!(p,ML,P,X)
 end
 
 function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(length(popsize)-1))
+	#setting values
+	ticksfontsize = 5
+
 	#setup plot
 	p = plot(size = (600,300),
-			rightmargin = 20mm,
-			leftmargin = 15mm,
-			topmargin = 5mm,
-			bottommargin = 5mm,
+			rightmargin = 10mm,#20mm,
+			leftmargin = 7mm,#15mm,
+			#topmargin = 5mm,
+			#bottommargin = 5mm,
 			title = "",
-			titlefontsize = 8,
-			titleposition=:left
+			titlefontsize = 5,
+			titleposition=:left,
+			xtickfontsize=ticksfontsize,
 			)
 	#plot population size in background
+	popticks = floor.(Int,eventicks(time[end],4))
 	plot!(p,time,popsize,
 		grid = false, label = "",
 		color = Gray(0.2), alpha = 0.7,
 		yticks = false,
 		ylims = (0,maximum(popsize)*1.01),
-		xlabel = "Time",
-		xticks = floor.(Int,range(0,time[end];length=5)),
+		#xlabel = "Time",
+		xticks = (popticks,string.(popticks)),
 		framestyle = :zerolines,
     	)
 	#plot Prevalence
-	prevmax = ceil(Integer,maximum(prevalence)*100)/100
+	prevmax = 0.6 #ceil(Integer,maximum(prevalence)*100)/100
+	prevticks = eventicks(prevmax,5)
 	plot!(twinx(),prevalence,
 		label = "", grid = false,
 		color = :orange,
-		ylabel = "Prevalence",
-		ylim = (0,maximum(prevalence)*1.01),
+		#ylabel = "Prevalence",
+		ylim = (0,prevmax*1.01),
 		yticks = (
-				range(0,prevmax;length=5),
-				string.(round.(100 .*range(0,prevmax;length=5),digits=2)).*"%"
+				prevticks,
+				string.(round.(100 .* prevticks ,digits=2)).*"%"
 			),
+		ytickfontsize=ticksfontsize,
 		#tickfontcolor = :orange,
 		framestyle = :zerolines,
 		xticks = false,
 		showaxis = false
  	   )
 	#plot mutation load
-	maxload = ceil(Integer,maximum(mutationload))
+	maxload = 27#ceil(Integer,maximum(mutationload))
+	loadticks = eventicks(maxload,5)
 	plot!(twinx(),mutationload,
 		label="",grid = false,
 		color=:red,
 		ymirror = false,
-		ylabel = "Mutation Load",
+		#ylabel = "Mutation Load",
 		ylim = (0,maxload),
-		yticks = range(0,maxload;length=5),
+		yticks = loadticks,
 		#tickfontcolor = :red,
+		ytickfontsize=ticksfontsize,
 		xticks = false,
 		framestyle = :zerolines,
 		showaxis = false
@@ -165,6 +174,12 @@ function mutationdistributiongif(history)
 		hline!([mean(mutations)],color=:red,label="mean")
 	end
 	return anim
+end
+
+function eventicks(stop,nticks,start=0)
+	l = stop-start
+	step = round(l/nticks,digits=-(floor(Int,log10(l)-1)))
+	return range(start,stop;step = step)
 end
 
 end #end of Module PlotFromDicts
