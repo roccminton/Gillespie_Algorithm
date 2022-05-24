@@ -1,0 +1,99 @@
+initialize() {
+	
+	initializeSLiMOptions(keepPedigrees=T);
+	
+	num_genes = 60;
+	idx_genes = num_genes-1;
+	
+	// m1 mutationtype neutral
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	
+	// m2 mutationtype deleterious
+	initializeMutationType("m2", 0.0, "f", 0.0);
+	
+	// g1 -> gene, g2 -> no gene
+	initializeGenomicElementType("g1", c(1,2), c(0,1));
+	
+	m1.color = "pink";
+	m2.color = "green";
+	g1.color="blue";
+	m2.mutationStackPolicy = "l";
+	
+	start=seq(0,999,by=1);
+	start=start[0:idx_genes];
+	defineConstant("START", start);
+	
+	end=seq(0,999,by=1);
+	end=end[0:idx_genes];
+	defineConstant("END", end);
+	
+	genomicType=rep(1,num_genes);
+	
+	genLen = 1;
+	bp_new = num_genes * genLen;
+	
+	deNovoInflux = 0.8;
+	mutRate_new = deNovoInflux/(2*bp_new);
+	mutationRate=rep(mutRate_new,num_genes);
+	
+	// make genomic elements with special mutationrate, and so on
+	for(i in seqAlong(genomicType)){
+		initializeGenomicElement(genomicType[i],start[i],end[i]);
+	}
+	initializeMutationRate(mutationRate,end);
+	
+	initializeRecombinationRate(1e-8,idx_genes);
+	
+	
+	// define constants
+	defineConstant("N0", 10000); //start populationsize
+	defineConstant("simID", getSeed());
+	
+	//two sexes
+	initializeSex("A");
+}
+
+1 early() {
+	sim.addSubpop("p1", N0);
+}
+
+late(){	
+	// Loop over individuals and figure out the fitness of each one holistically
+	for (ind in p1.individuals){
+		
+		// get the positions of all m2 mutations in each of the two genomes
+		g1pos = ind.genome1.mutationsOfType(m2).position;
+		g2pos = ind.genome2.mutationsOfType(m2).position;
+					
+		if ((length(g1pos) > 0) & (length(g2pos) > 0))
+		{				// use sapply() to find the index of the gene for each position
+			g1elem = sapply(g1pos, "whichMax(applyValue <= END);");
+			g2elem = sapply(g2pos, "whichMax(applyValue <= END);");
+							
+			// unique down the gene indexes since multiple mutations in the same gene are irrelevant
+			g1elem = unique(g1elem);
+			g2elem = unique(g2elem);
+				
+			// find the intersection of the gene indexes hit on the two genomes
+			elemsHitInBoth = setIntersection(g1elem, g2elem);
+				
+			// if a gene was hit on both genomes, fitness is 0.0 (1.0 is the default)
+			if (size(elemsHitInBoth) > 0)
+				ind.fitnessScaling = 0.0;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------------------------------------------
+//Output for ill individuals and mutationload
+//------------------------------------------------------------------------------------------------------------------
+1 early(){
+	writeFile("~PATH/random_ills_mutationload_" + simID + ".txt", "generation,populationsize,mutationload,ill individuals", append=T);
+}
+
+1:100000 late(){
+	muts=sum(p1.individuals.countOfMutationsOfType(m2));
+	mutationload=muts/p1.individualCount;
+	ills = length(p1.individuals[p1.individuals.fitnessScaling==0.0]);
+	writeFile("~PATH/random_ills_mutationload_" + simID + ".txt",(sim.generation +","+p1.individualCount+","+mutationload+","+ills),append=T);
+}
