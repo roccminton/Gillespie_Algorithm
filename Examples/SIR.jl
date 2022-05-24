@@ -43,11 +43,11 @@ end
 include("../MainFunctions.jl")
 import .Gillespie
 
-using BenchmarkTools
+using Plots
 
 par = (
-    β = 0.1/10000.0,
-    γ = 0.05
+    β = 5/1000000,
+    γ = 0.005
     )
 
 x0 = [9999,1,0]
@@ -55,11 +55,11 @@ t = 0:1000
 
 hist = zeros(Int,(length(t),3))
 
-bench_result = @benchmark Gillespie.run_gillespie!(
-        $t,$x0,$par,
-        $execute!,$rates!,
-        $Vector{Float64}(undef,2),$hist
+result = Gillespie.run_gillespie!(
+        t,x0,par,
+        execute!,rates!,
+        Vector{Float64}(undef,2),hist
         )
 
 #plot simulation
-#plot(hist,label=["S" "I" "R"])
+plot(hist,label=["S" "I" "R"])
