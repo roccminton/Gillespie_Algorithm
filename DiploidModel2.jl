@@ -77,6 +77,10 @@ setupparameter(par,n0,historylength) = (
     historylength = historylength
     )
 
+function changeparameter(par,newpar)
+    return merge(par,newpar)
+end
+
 function inittraitsfromdict(par,n0)
     locs = 1:par.Nloci
     traits = [spzeros(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
@@ -210,7 +214,6 @@ end
 
 isnotzero(n) = !iszero(n)
 
-
 historytodataframe(t,history) = DataFrame(
     time=t,
     PopSize=history["PopSize"],
@@ -224,36 +227,52 @@ function timesfromswitches(totaltime,switches)
     for (i,t) in enumerate(switches)
         tend = findfirst(x -> x≥t,totaltime)
         times[i] = totaltime[tstart:tend]
-        tstart = tend
+        tstart = tend+1
     end
     times[end] = totaltime[tstart:end]
     return times
 end
 
-function runseveralgillespie(totaltime,switch::Vector,x0,parameters)
+function runseveralgillespie(totaltime,switch::Vector,parameter_changes,n₀,model_parameter)
+
     #setup empty population history
     l = length(totaltime)
-    population_history = Dict(x=>spzeros(valtype(x0),l) for x in keys(x0))
+    population_history = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
+
+    #setup empty rates vector
+    initrates = Vector{typeof(model_parameter.birth)}(undef,2)
+
+    #choose rates function
+    if haskey(model_parameter,:rates)
+        rates! = getfield(DiploidModel2,Symbol(model_parameter.rates))
+    else
+        rates! = truerates!
+    end
+
+    par = setupparameter(model_parameter,n₀,l)
+
     #save initial population
-    for (x,nₓ) in x0
+    for (x,nₓ) in n₀
         #add the population history for the given trait
         population_history[x][1] = nₓ
     end
-    #setup empty rates vector
-    initrates = Vector{typeof(parameters[1].birth)}(undef,2)
+
     #switching times
     times = timesfromswitches(totaltime,switch)
+
     #execute simulation
     for (i,t) in enumerate(times)
         Gillespie.run_gillespie!(
-            t,x0,
-            setupparameter(parameters[i],x0,l),
+            t,n₀,
+            par,
             execute!,
             rates!,
             initrates,
             population_history,
             hstart = t[1]
             )
+        #change parameter for next block, unless no block follows
+        i < length(times) && (par = changeparameter(par,parameter_changes[i]))
     end
     return population_history
 end
