@@ -24,17 +24,18 @@ using DataFrames
 """
 Returns a named tuple parameter set for Gillespie algorithm
 """
-cont_parameter(K,b,d,dni,N) = (
+cont_parameter(K,b,d,dni,N,rec=1) = (
         birth = b,
         death = d,
         competition = (b-d)/K,
         μ = dni,
         Nloci = N,
         K = K,
-        rates = "allbirthrates!"
+        rates = "allbirthrates!",
+        recombination = rec
 )
 
-cont_parameter(K,dni,N) = cont_parameter(K,1.0,0.9,dni,N)
+cont_parameter(K,dni,N,rec=1) = cont_parameter(K,1.0,0.9,dni,N,rec)
 
 wf_parameter(K,dni,N) = (μ=dni, Nloci=N, K=K, popsize=WrightFisher.const_popsize)
 

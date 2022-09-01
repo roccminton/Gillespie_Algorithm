@@ -7,6 +7,14 @@ individuals in the population is saved only once in shared memory and then only
 overwritten. Therefore 3 Arrays are implemented containing the indexes of the
 individuals that are 1) alive and healthy 2) alive and ill and 3) not alive, hence
 free space to use
+
+birth = b,
+death = d,
+competition = (b-d)/K,
+μ = dni,
+Nloci = N,
+K = K,
+rates = "allbirthrates!"
 """
 
 module DiploidModel2
@@ -15,10 +23,17 @@ using SparseArrays
 using Random
 using Distributions
 using DataFrames
+using StatsBase
 
 include("MainFunctions.jl")
 import .Gillespie
 
+
+"""
+    Executes one run of the Gillespie algorithm with initial population size n0 over
+    the time intervall time. The named tuple model_parameter has to have at least the following
+    keys: birth, death, competition, μ, Nloci, K, recombination
+"""
 function rungillespie(time,n₀,model_parameter)
 
     #setup empty population history
@@ -39,7 +54,7 @@ function rungillespie(time,n₀,model_parameter)
     Gillespie.run_gillespie!(
         time,n₀,
         setupparameter(model_parameter,n₀,l),
-        execute!,
+        (model_parameter.recombination == 1 ? execute_fullrec! : execute!),
         rates!,
         initrates,
         population_history
@@ -121,7 +136,12 @@ end
 #---
 #Model Functions - Total Recombination
 
-setupparameter(par,n0,historylength) = (
+function setupparameter(par,n0,historylength)
+    #chromosome cuts of no interest for full recombination, because genes are independent in that case
+    #otherwise the number of cuts is Poisson distributed, whereas the positions are uniformly choosen
+    ccuts = initcuts(par)
+
+    return (
     par...,
     rndm = Vector{Int}(undef,2),
     MutationsPerBirth = Poisson(par.μ),
@@ -132,10 +152,48 @@ setupparameter(par,n0,historylength) = (
         "ill" => collect(1:n0["Ill"]),
         "free" => collect(n0["PopSize"]+1:round(Int,par.K + sqrt(par.K)))
     ),
-    historylength = historylength
+    historylength = historylength,
+    #chromosome cuts of no interest for full recombination, because genes are independent in that case
+    #otherwise the number of cuts is Poisson distributed, whereas the positions are uniformly choosen
+    ccuts = ccuts,
+    choosecopy = Vector{Int64}(undef,length(ccuts)),
+    choosecopyfrom = 1:2
     )
+end
 
+"""
+    Generates the chromosome cuts depending on the recombination rate
+"""
+function initcuts(par)
+    if par.recombination == 1
+        return [1:par.Nloci]
+    else
+        cutsat = sort!(sample(1:par.Nloci-1,rand(Poisson(par.recombination*par.Nloci)),replace=false))
+        isempty(cutsat) && return [1:par.Nloci]
+        ccuts = [1:cutsat[1]]
+        for i in 2:length(cutsat)
+            push!(ccuts,cutsat[i-1]+1:cutsat[i])
+        end
+        push!(ccuts,cutsat[end]+1:par.Nloci)
+        return ccuts
+    end
+end
+"""
+    Choose the respective initial traits depending on the recombination rate.
+"""
 function inittraitsfromdict(par,n0)
+    if par.recombination == 1
+        return inittraits_fullrec(par,n0)
+    else
+        return inittraits_rec(par,n0)
+    end
+end
+
+"""
+Sets up an empty trait vector for a Simulation with independent genes (full recobination)
+Only N positions are needed, if N diploid (!) genes are considered.
+"""
+function inittraits_fullrec(par,n0)
     locs = 1:par.Nloci
     traits = [spzeros(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
     for i in 1:n0["Ill"]
@@ -154,8 +212,37 @@ function inittraitsfromdict(par,n0)
     end
     return traits
 end
-
-ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
+"""
+Sets up an empty trait vector for a Simulation with non full recobination. Therefore
+2N positions are needed, for N diploid genes under consideration.
+"""
+function inittraits_rec(par,n0)
+    #Setup healthy genetic information
+    locs = 1:par.Nloci
+    #Generate healty population with some buffer for fluctuations
+    traits = [(spzeros(par.Nloci),spzeros(par.Nloci)) for _ in 1:round(Int,par.K + sqrt(par.K))]
+    #add two mutations to completely healthy individuals to get the required number of ill individuals
+    for i in 1:n0["Ill"]
+        l = rand(locs)
+        traits[i][1][l] = 1
+        traits[i][2][l] = 1
+    end
+    individuals = 1:n0["PopSize"]
+    #add the remaining mutaions to the population to get the required mutation load
+    for i in n0["Ill"]+1:n0["ML"]-2*n0["Ill"]
+        #choose random individual and location
+        ind = rand(individuals)
+        l = rand(locs)
+        #recoose random individual and location if the individual has already a mutation
+        #at that locationo or at the homologe gene
+        while traits[ind][1][l]+traits[ind][2][l] ≠ 0
+            ind = rand(individuals)
+            l = rand(locs)
+        end
+        traits[ind][rand(par.choosecopyfrom)][l] = 1
+    end
+    return traits
+end
 
 """
     function rates!(rates,ps,par)
@@ -180,7 +267,33 @@ function allbirthrates!(rates, ps, par)
     nothing
 end
 
-function offspring!(offspring_index, par, n_mut)
+#--- Functions for the model with 100% Recombination (full recombination)
+
+function birth_fullrec!(ps, par)
+    #choose two genetic configurations to mate
+    rand!(par.rndm,par.indices["healthy"])
+    dropzeros!(par.traits[par.rndm[1]]); dropzeros!(par.traits[par.rndm[2]])
+    #select free index for offspring
+    if isempty(par.indices["free"])
+        offspring_index = length(par.traits) + 1
+        push!(par.traits,spzeros(par.Nloci))
+    else
+        offspring_index = pop!(par.indices["free"])
+    end
+    #generate offsprings genetic configuration
+    offspring_fullrec!(offspring_index, par, rand(par.MutationsPerBirth))
+    #add the individual to the current population state dictionary
+    if ispropagable(par.traits[offspring_index])
+        push!(par.indices["healthy"],offspring_index)
+    else
+        ps["Ill"] += 1
+        push!(par.indices["ill"],offspring_index)
+    end
+    ps["PopSize"] += 1
+    ps["ML"] += mutationload(par.traits[offspring_index])
+end
+
+function offspring_fullrec!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information
     par.traits[offspring_index] .= choose.(
         par.traits[par.rndm[1]],
@@ -223,14 +336,31 @@ function choose(i, j)
     end
 end
 
+ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
+
+function execute_fullrec!(i,ps,par)
+    if i == 1
+        birth_fullrec!(ps,par)
+    elseif i == 2
+        death!(ps,par)
+    else
+        error("Unknown event index: $i")
+    end
+end
+
+
+##--- Functions for the model with moderate to non recombination
 function birth!(ps, par)
     #choose two genetic configurations to mate
     rand!(par.rndm,par.indices["healthy"])
-    dropzeros!(par.traits[par.rndm[1]]); dropzeros!(par.traits[par.rndm[2]])
+    #clean up parental configurations
+    for i in par.choosecopyfrom, j in par.choosecopyfrom
+        dropzeros!(par.traits[par.rndm[i]][j])
+    end
     #select free index for offspring
     if isempty(par.indices["free"])
         offspring_index = length(par.traits) + 1
-        push!(par.traits,spzeros(par.Nloci))
+        push!(par.traits,(spzeros(par.Nloci),spzeros(par.Nloci)))
     else
         offspring_index = pop!(par.indices["free"])
     end
@@ -244,8 +374,39 @@ function birth!(ps, par)
         push!(par.indices["ill"],offspring_index)
     end
     ps["PopSize"] += 1
-    ps["ML"] += sum(par.traits[offspring_index])
+    ps["ML"] += mutationload(par.traits[offspring_index])
 end
+
+function offspring!(offspring_index, par, n_mut)
+    #randomly recombine the parental genetic information
+    #first for one then for the other parent
+    for i in par.choosecopyfrom
+        #randomly choose one copy for each chromosome/gene block
+        rand!(par.choosecopy,par.choosecopyfrom)
+        for (r,chromosome) in enumerate(par.ccuts)
+            view(par.traits[offspring_index][i],chromosome) .=
+                view(par.traits[par.rndm[i]][par.choosecopy[r]],chromosome)
+        end
+    end
+    #add n_mut mutations to random positions mutation
+    #if there are no mutations to add skip the mutation process
+    if n_mut > 0
+        for _ in 1:n_mut
+            par.traits[offspring_index][rand(par.choosecopyfrom)][rand(par.MutationLocation)] = 1
+        end
+    end
+    nothing
+end
+
+function ispropagable(a::Tuple{SparseVector,SparseVector})
+    for (i,gene) in enumerate(a[1])
+        isone(gene) && isone(a[2][i]) && return false
+    end
+    return true
+end
+
+mutationload(a::Tuple{SparseVector,SparseVector}) = sum(sum(spvec) for spvec in a)
+mutationload(a::SparseVector) = sum(a)
 
 function death!(ps, par)
     #choose fey
@@ -259,10 +420,9 @@ function death!(ps, par)
     push!(par.indices["free"],fey_index)
     #update population state
     ps["PopSize"] -= 1
-    ps["ML"] -= sum(par.traits[fey_index])
+    ps["ML"] -= mutationload(par.traits[fey_index])
     nothing
 end
-
 
 function execute!(i,ps,par)
     if i == 1
