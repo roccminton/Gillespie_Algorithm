@@ -51,7 +51,7 @@ par = (
     )
 
 x0 = [9999,1,0]
-t = 0:1000
+t = 0:3000
 
 hist = zeros(Int,(length(t),3))
 

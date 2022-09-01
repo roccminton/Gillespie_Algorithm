@@ -12,24 +12,32 @@ parameter_from_K(K,b,d,dni,N) = (
         Nloci = N
 )
 
-Ks = [500,10000]
-tup = 150
+for K in [
+        500,1_000,
+        10_000,50_000,
+        100_000,500_000,
+        1_000_000,1_500_000,2_000_000
+        ]
 
-b = 1.0
-d = 0.9
-dni = 1.2 * 10^(-2)
-N = 100
+        Ks = [K,K*20]
+        tup = 150
 
-parameters = [parameter_from_K(K,b,d,dni,N) for K in Ks]
+        b = 1.0
+        d = 0.9
+        dni = 1.2 * 10^(-2)
+        N = 100
 
-t = 0:1000
-x0 = DiploidModel.generatehealthypopulation(Ks[1],N)
+        parameters = [parameter_from_K(K,b,d,dni,N) for K in Ks]
 
-#execute the simulation
-history = DiploidModel.runseveralgillespie(t,tup,x0,parameters)
+        t = 0:1000
 
-#plot simulation
-PlotFromDicts.plotmutationloadandprevalence(history)
+        x0 = DiploidModel.generatehealthypopulation(Ks[1],N)
+        #execute the simulation
+        history = DiploidModel2.runseveralgillespie(t,tup,x0,parameters)
 
-#savefig
-savefig("/Users/roccminton/Documents/Uni/Gillespie_Algorithm/PlotOutput/random_mating.pdf")
+        #plot simulation
+        PlotFromDicts.plotmutationloadandprevalence(history)
+
+        #savefig
+        savefig("/Users/roccminton/Documents/Uni/Gillespie_Algorithm/PlotOutput/random_mating_$(K[1]).pdf")
+end

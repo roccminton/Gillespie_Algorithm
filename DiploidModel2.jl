@@ -63,11 +63,69 @@ function initpopulation(popsize,ML,Ill)
     end
 end
 
+#---
+#General Model Functions for parameter changes during runtime
+
+function changeparameter(par,newpar)
+    return merge(par,newpar)
+end
+
+function runseveralgillespie(totaltime,switch::Vector,parameter_changes,n₀,model_parameter)
+
+    #setup empty population history
+    l = length(totaltime)
+    population_history = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
+
+    #setup empty rates vector
+    initrates = Vector{typeof(model_parameter.birth)}(undef,2)
+
+    #choose rates function
+    if haskey(model_parameter,:rates)
+        rates! = getfield(DiploidModel2,Symbol(model_parameter.rates))
+    else
+        rates! = truerates!
+    end
+
+    par = setupparameter(model_parameter,n₀,l)
+
+    #save initial population
+    for (x,nₓ) in n₀
+        #add the population history for the given trait
+        population_history[x][1] = nₓ
+    end
+
+    #switching times
+    times = timesfromswitches(totaltime,switch)
+
+    #execute simulation
+    for (i,t) in enumerate(times)
+        Gillespie.run_gillespie!(
+            t,n₀,
+            par,
+            execute!,
+            rates!,
+            initrates,
+            population_history,
+            hstart = t[1]
+            )
+        #change parameter for next block, unless no block follows
+        i < length(times) && (par = changeparameter(par,parameter_changes[i]))
+    end
+    return population_history
+end
+
+function runseveralgillespie(totaltime,switch::Number,par_changes,x0,parameters)
+    return runseveralgillespie(totaltime,[switch],par_changes,x0,parameters)
+end
+
+#---
+#Model Functions - Total Recombination
+
 setupparameter(par,n0,historylength) = (
     par...,
     rndm = Vector{Int}(undef,2),
     MutationsPerBirth = Poisson(par.μ),
-    MutationLocation = DiscreteUniform(1,par.Nloci),
+    MutationLocation = 1:par.Nloci,
     traits = inittraitsfromdict(par,n0),
     indices = Dict(
         "healthy" => collect(n0["Ill"]+1:n0["PopSize"]),
@@ -76,10 +134,6 @@ setupparameter(par,n0,historylength) = (
     ),
     historylength = historylength
     )
-
-function changeparameter(par,newpar)
-    return merge(par,newpar)
-end
 
 function inittraitsfromdict(par,n0)
     locs = 1:par.Nloci
@@ -147,7 +201,15 @@ function mutate!(par,offspring_index,location)
     #if there are still mutations to add
     if a < 2
         #add a mutation if a=0 and if a=1 add a mutation with prob. 1/2
-        par.traits[offspring_index][location] = a*rand(Bool)+1
+        par.traits[offspring_index][location] = executemutation(a)
+    end
+end
+
+function executemutation(existing_mutations)
+    if iszero(existing_mutations)
+        return 1
+    else
+        rand(Bool) ? (return 1) : (return 2)
     end
 end
 
@@ -233,52 +295,6 @@ function timesfromswitches(totaltime,switches)
     return times
 end
 
-function runseveralgillespie(totaltime,switch::Vector,parameter_changes,n₀,model_parameter)
 
-    #setup empty population history
-    l = length(totaltime)
-    population_history = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
-
-    #setup empty rates vector
-    initrates = Vector{typeof(model_parameter.birth)}(undef,2)
-
-    #choose rates function
-    if haskey(model_parameter,:rates)
-        rates! = getfield(DiploidModel2,Symbol(model_parameter.rates))
-    else
-        rates! = truerates!
-    end
-
-    par = setupparameter(model_parameter,n₀,l)
-
-    #save initial population
-    for (x,nₓ) in n₀
-        #add the population history for the given trait
-        population_history[x][1] = nₓ
-    end
-
-    #switching times
-    times = timesfromswitches(totaltime,switch)
-
-    #execute simulation
-    for (i,t) in enumerate(times)
-        Gillespie.run_gillespie!(
-            t,n₀,
-            par,
-            execute!,
-            rates!,
-            initrates,
-            population_history,
-            hstart = t[1]
-            )
-        #change parameter for next block, unless no block follows
-        i < length(times) && (par = changeparameter(par,parameter_changes[i]))
-    end
-    return population_history
-end
-
-function runseveralgillespie(totaltime,switch::Number,x0,parameters)
-    return runseveralgillespie(totaltime,[switch],x0,parameters)
-end
 
 end  # end of module DiploidModel2
