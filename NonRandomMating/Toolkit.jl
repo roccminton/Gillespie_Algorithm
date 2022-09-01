@@ -125,7 +125,7 @@ Executes a number n of simulations for every combination of Ns, dnis,
 Ks up to tend and the calculates the average ofer the last tend/2 time
 steps and over all simulations with the same parameter.
 """
-function get_equilibrium(Ns,dnis,Ks,tend)
+function get_equilibrium(Ns,dnis,Ks,tend,ex_func=execute_cont)
         #create data frame
         df = DataFrame(
                 Nloci = Int[],
@@ -142,9 +142,9 @@ function get_equilibrium(Ns,dnis,Ks,tend)
                 println("Currently at N=$N,dni=$dni,K=$K")
                 row = Float64[N,dni,K]
                 #number of runs depend on average size
-                #n = ceil(Int,100_000/K)
-                n=5
-                history=execute_and_mean(dni,N,K,tend,n)
+                n = ceil(Int,10_000/K)
+                n=1
+                history=execute_and_mean(K,dni,N,tend,n,ex_func)
                 popsize = averageoverlast(history,"PopSize",last)
                 push!(row,popsize)
                 push!(row,averageoverlast(history,"Ill",last)/popsize)

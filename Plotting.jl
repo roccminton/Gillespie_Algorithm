@@ -89,18 +89,18 @@ function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(l
 		color = Gray(0.2), alpha = 0.7,
 		yticks = false,
 		ylims = (0,maximum(popsize)*1.01),
-		#xlabel = "Time",
+		xlabel = "Time",
 		xticks = (popticks,string.(popticks)),
 		framestyle = :zerolines,
     	)
 	#plot Prevalence
-	prevmax = 0.6 #ceil(Integer,maximum(prevalence)*100)/100
+	prevmax = ceil(Integer,maximum(prevalence)*100)/100
 	prevticks = eventicks(prevmax,5)
 	plot!(twinx(),prevalence,
 		label = "", grid = false,
 		color = :orange,
-		#ylabel = "Prevalence",
-		ylim = (0,prevmax*1.01),
+		ylabel = "Prevalence",
+		#ylim = (0,prevmax*1.01),
 		yticks = (
 				prevticks,
 				string.(round.(100 .* prevticks ,digits=2)).*"%"
@@ -112,14 +112,14 @@ function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(l
 		showaxis = false
  	   )
 	#plot mutation load
-	maxload = 27#ceil(Integer,maximum(mutationload))
+	maxload = ceil(Integer,maximum(mutationload))
 	loadticks = eventicks(maxload,5)
 	plot!(twinx(),mutationload,
 		label="",grid = false,
 		color=:red,
 		ymirror = false,
-		#ylabel = "Mutation Load",
-		ylim = (0,maxload),
+		ylabel = "Mutation Load",
+		#ylim = (0,maxload),
 		yticks = loadticks,
 		#tickfontcolor = :red,
 		ytickfontsize=ticksfontsize,
