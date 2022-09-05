@@ -166,7 +166,7 @@ end
 """
 function initcuts(par)
     if par.recombination == 1
-        return [1:par.Nloci]
+        return []
     else
         cutsat = sort!(sample(1:par.Nloci-1,rand(Poisson(par.recombination*par.Nloci)),replace=false))
         isempty(cutsat) && return [1:par.Nloci]
@@ -380,7 +380,7 @@ end
 function offspring!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information
     #first for one then for the other parent
-    for i in par.choosecopyfrom
+    for i in par.choosecopyfrom # =1:2
         #randomly choose one copy for each chromosome/gene block
         rand!(par.choosecopy,par.choosecopyfrom)
         for (r,chromosome) in enumerate(par.ccuts)

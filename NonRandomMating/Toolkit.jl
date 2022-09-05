@@ -20,6 +20,7 @@ import .WrightFisher
 using Statistics
 using CSV
 using DataFrames
+using Plots
 
 """
 Returns a named tuple parameter set for Gillespie algorithm
