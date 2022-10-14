@@ -73,10 +73,10 @@ function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(l
 
 	#setup plot
 	p = plot(size = (600,300),
-			rightmargin = 10mm,#20mm,
-			leftmargin = 7mm,#15mm,
+			rightmargin = 20mm,#20mm,
+			leftmargin = 15mm,#15mm,
 			#topmargin = 5mm,
-			#bottommargin = 5mm,
+			bottommargin = 5mm,
 			title = "",
 			titlefontsize = 5,
 			titleposition=:left,

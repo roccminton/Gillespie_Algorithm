@@ -36,9 +36,18 @@ import .Gillespie
 """
 function rungillespie(time,n₀,model_parameter)
 
-    #setup empty population history
     l = length(time)
-    population_history = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
+
+    #setup empty population history
+    #if ther is an inital histogram in the parameters than use a different history
+    if haskey(model_parameter, :histogramdata)
+        population_history = Dict{String,Any}(
+            "Healthy"=>[spzeros(Integer,maxmutationload(model_parameter)) for _ in 1:l],
+            "Ill"=>[spzeros(Integer,maxmutationload(model_parameter)) for _ in 1:l]
+            )
+    else
+        population_history = Dict{String,Any}(x=>zeros(valtype(n₀),l) for x in keys(n₀))
+    end
 
     #setup empty rates vector
     initrates = Vector{typeof(model_parameter.birth)}(undef,2)
@@ -50,21 +59,40 @@ function rungillespie(time,n₀,model_parameter)
         rates! = truerates!
     end
 
+    parameter = setupparameter(model_parameter,n₀,l)
+
     #execute simulation
-    Gillespie.run_gillespie!(
-        time,n₀,
-        setupparameter(model_parameter,n₀,l),
-        (model_parameter.recombination == 1 ? execute_fullrec! : execute!),
-        rates!,
-        initrates,
-        population_history
-        )
+    if haskey(model_parameter, :histogramdata)
+        Gillespie.run_gillespie!(
+            time,n₀,
+            parameter,
+            (model_parameter.recombination == 1 ? execute_fullrec! : execute!),
+            rates!,
+            initrates,
+            population_history,
+            statistic! = savehistdata!
+            )
+    else
+        Gillespie.run_gillespie!(
+            time,n₀,
+            parameter,
+            (model_parameter.recombination == 1 ? execute_fullrec! : execute!),
+            rates!,
+            initrates,
+            population_history,
+            )
+    end
+
+    #save additional information
+    population_history["cutsat"] = vcat([1],[cut[end] for cut in parameter.ccuts])
 
     return population_history
-
 end
 
 generatehealthypopulation(popsize) = initpopulation(popsize,0,0)
+
+maxmutationload(Nloci,μ,K) = Nloci + quantile(Poisson(μ),1-1/K)
+maxmutationload(model_parameter) = maxmutationload(model_parameter.Nloci,model_parameter.μ,model_parameter.K)
 
 function initpopulation(popsize,ML,Ill)
     if ML >= 2*Ill
@@ -76,6 +104,26 @@ function initpopulation(popsize,ML,Ill)
     else
         error("Mutation Load ($ML) must be at least twice the number of ill individual($Ill)")
     end
+end
+
+function initialhistogram(par,n₀)
+    for ind ∈ 1:n₀["Ill"]
+        par.histogramdata["Ill"][mutationload(par.traits[ind])] += 1
+    end
+    for ind ∈ n₀["Ill"]+1:n₀["PopSize"]
+        par.histogramdata["Healthy"][mutationload(par.traits[ind])] += 1
+    end
+end
+
+emptyhistogram(Nloci,μ,K) = Dict(
+    "Healthy" => spzeros(Integer,maxmutationload(Nloci,μ,K)),
+    "Ill" => spzeros(Integer,maxmutationload(Nloci,μ,K)),
+)
+
+function healthyhistogram(Nloci,μ,K)
+    hist = emptyhistogram(Nloci,μ,K)
+    hist["Healthy"][1] = K
+    return hist
 end
 
 #---
@@ -283,14 +331,9 @@ function birth_fullrec!(ps, par)
     #generate offsprings genetic configuration
     offspring_fullrec!(offspring_index, par, rand(par.MutationsPerBirth))
     #add the individual to the current population state dictionary
-    if ispropagable(par.traits[offspring_index])
-        push!(par.indices["healthy"],offspring_index)
-    else
-        ps["Ill"] += 1
-        push!(par.indices["ill"],offspring_index)
-    end
-    ps["PopSize"] += 1
-    ps["ML"] += mutationload(par.traits[offspring_index])
+    updateps_birth!(ps,par,offspring_index)
+    #update further statistics
+    par.updatestats_birth!(ps,par,offspring_index)
 end
 
 function offspring_fullrec!(offspring_index, par, n_mut)
@@ -367,6 +410,12 @@ function birth!(ps, par)
     #generate offsprings genetic configuration
     offspring!(offspring_index, par, rand(par.MutationsPerBirth))
     #add the individual to the current population state dictionary
+    updateps_birth!(ps,par,offspring_index)
+    #update further statistics
+    par.updatestats_birth!(ps,par,offspring_index)
+end
+
+function updateps_birth!(ps,par,offspring_index)
     if ispropagable(par.traits[offspring_index])
         push!(par.indices["healthy"],offspring_index)
     else
@@ -376,6 +425,30 @@ function birth!(ps, par)
     ps["PopSize"] += 1
     ps["ML"] += mutationload(par.traits[offspring_index])
 end
+
+function updateps_death(ps,par,fey_index)
+    ps["PopSize"] -= 1
+    ps["ML"] -= mutationload(par.traits[fey_index])
+    nothing
+end
+
+function savehistdata!(pop_hist,index,n0,par)
+        pop_hist["Healthy"][index] .= par.histogramdata["Healthy"]
+        pop_hist["Ill"][index] .= par.histogramdata["Ill"]
+end
+
+nostats(ps,par) = nothing
+
+function update_histogram!(ps,par,index,i)
+    if ispropagable(par.traits[index])
+        par.histogramdata["Healthy"][round(Integer,mutationload(par.traits[index])+1)] += i
+    else
+        par.histogramdata["Ill"][round(Integer,mutationload(par.traits[index])+1)] += i
+    end
+end
+
+update_histogram_birth!(ps,par,index) = update_histogram!(ps,par,index,+1)
+update_histogram_death!(ps,par,index) = update_histogram!(ps,par,index,-1)
 
 function offspring!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information
@@ -419,9 +492,9 @@ function death!(ps, par)
     #add fey to gravejard
     push!(par.indices["free"],fey_index)
     #update population state
-    ps["PopSize"] -= 1
-    ps["ML"] -= mutationload(par.traits[fey_index])
-    nothing
+    updateps_death(ps,par,fey_index)
+    #update further statistics
+    par.updatestats_death!(ps,par,fey_index)
 end
 
 function execute!(i,ps,par)
@@ -436,11 +509,11 @@ end
 
 isnotzero(n) = !iszero(n)
 
-historytodataframe(t,history) = DataFrame(
-    time=t,
+historytodataframe(history) = DataFrame(
     PopSize=history["PopSize"],
     Ill=history["Ill"],
     Mutation=history["ML"],
+    Ccuts = vcat(history["cutsat"],fill(NaN,length(history["PopSize"])-length(history["cutsat"])))
     )
 
 function timesfromswitches(totaltime,switches)

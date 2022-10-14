@@ -36,7 +36,12 @@ function run_wrightfisher(time, n₀, model_parameter)
     return population_history
 end
 
-setupparameter(par, n0, historylength) = (
+function setupparameter(par, n0, historylength)
+    #chromosome cuts of no interest for full recombination, because genes are independent in that case
+    #otherwise the number of cuts is Poisson distributed, whereas the positions are uniformly choosen
+    ccuts=DiploidModel2.initcuts(par)
+
+    return (
     par...,
     rndm = Vector{Int}(undef, 2),
     MutationsPerBirth = Poisson(par.μ),
@@ -56,7 +61,13 @@ setupparameter(par, n0, historylength) = (
         ],
     ),
     historylength = historylength,
-)
+    #chromosome cuts of no interest for full recombination, because genes are independent in that case
+    #otherwise the number of cuts is Poisson distributed, whereas the positions are uniformly choosen
+    ccuts = ccuts,
+    choosecopy = Vector{Int64}(undef,length(ccuts)),
+    choosecopyfrom = 1:2
+    )
+end
 
 function mainiteration!(n0, time, par, pop_hist)
     #run simulation
@@ -102,8 +113,7 @@ end
 function birth!(ps, par, indx, old, new)
     #choose two genetic configurations to mate
     rand!(par.rndm, par.indices["healthy"][old])
-    dropzeros!(par.traits[old][par.rndm[1]])
-    dropzeros!(par.traits[old][par.rndm[2]])
+    dropzeros!(par.traits[old][par.rndm[1]]); dropzeros!(par.traits[old][par.rndm[2]])
     #generate offsprings genetic configuration
     offspring!(indx, par, rand(par.MutationsPerBirth), old, new)
     #add to population size

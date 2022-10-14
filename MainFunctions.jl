@@ -14,7 +14,7 @@ is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
 
-function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,population_history;hstart=0) where {F1,F2}
+function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,population_history;hstart=0,statistic! = saveonestep!) where {F1,F2,F3}
 
     mainiteration!(
         population_history,
@@ -25,6 +25,7 @@ function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,populati
         par,
         execute!,
         rates!,
+        statistic!,
         hstart
     )
 
@@ -36,13 +37,13 @@ end
     For OneType model where the population state is a number and
     the population history is a vector.
 """
-function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!::F1,r!::F2,hstart) where {F1,F2}
+function mainiteration!(pop_hist,rates,n0::Real,ct,time,par,ex!::F1,r!::F2,stat!::F3,hstart) where {F1,F2,F3}
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #move index
         index += hstart
         #save one step evolution
-        saveonestep!(pop_hist,index,n0,par)
+        stat!(pop_hist,index,n0,par)
         #execute one step of the simulation
         ct, n0 = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
@@ -58,7 +59,7 @@ end
     itselfe a dictionary with the same keys and the individual subpopulation
     history as a vector for every trait.
 """
-function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,hstart) where {F1,F2}
+function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,stat!::F3,hstart) where {F1,F2,F3}
     #run simulation
     @showprogress for (index,step) in enumerate(time)
         #move index
@@ -66,7 +67,7 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,hstart) whe
         #clean up dictionary by deleting keys with value zero
         #dropzeros!(n0)
         #save one step evolution
-        saveonestep!(pop_hist,index,n0,par)
+        stat!(pop_hist,index,n0,par)
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
