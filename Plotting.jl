@@ -5,12 +5,14 @@ evolutionary history in terms of subpopulation size.
 """
 module PlotFromDicts
 
-include("DiploidModel.jl")
-import .DiploidModel
+#include("DiploidModel.jl")
+#import .DiploidModel
 
 using Plots
 using Measures
 using Statistics
+using DataFrames
+using SparseArrays
 
 export plotTSS
 
@@ -180,6 +182,43 @@ function eventicks(stop,nticks,start=0)
 	l = stop-start
 	step = round(l/nticks,digits=-(floor(Int,log10(l)-1)))
 	return range(start,stop;step = step)
+end
+
+"""
+Generates the Mutation Load and Prevalence Plot.
+"""
+plot_MLP(history) = plotmutationloadandprevalence(
+                history["PopSize"],
+                replace_NaN(history["Ill"] ./ history["PopSize"]),
+                replace_NaN(history["ML"] ./ history["PopSize"]))
+plot_MLP(df::DataFrame) = plotmutationloadandprevalence(
+                df.PopSize,
+                replace_NaN(df.Ill ./ df.PopSize),
+                replace_NaN(df.Mutation ./ df.PopSize))
+
+replace_NaN(v) = map(x -> isnan(x) ? zero(x) : x, v)
+
+function plot_MLHist(hhist,t,ylim,xlim,key="both")
+	if key == "both"
+		h = hhist["Ill"][t] .+ hhist["Healthy"][t]
+		color = :blue
+	else
+		h = hhist[key][t]
+		color = key=="Ill" ? :orange : :red
+	end
+	class, abs_freq = findnz(h)
+	#Indexing statrs with 1 but mutation load starts with 0
+	class .= class .- 1
+	rel_freq = abs_freq ./ sum(abs_freq)
+	bar(
+		class, rel_freq,
+		xlabel="Classes",
+		ylabel="Frequency",
+		legend=false,
+		color = color,
+		xlim = (-1,xlim),
+		ylim = (0,ylim),
+	)
 end
 
 end #end of Module PlotFromDicts
