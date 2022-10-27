@@ -18,9 +18,3 @@ saveonestep!(ph::MLPHistory,index,ps,par) = DiploidModel2.Gillespie.saveonestep!
 
 DiploidModel2.updatestats_death!(ps,par,index) = nothing
 DiploidModel2.updatestats_birth!(ps,par,index) = nothing
-
-historytodataframe(history::MLPHistory) = DataFrame(
-    PopSize=history.mlp["PopSize"],
-    Ill=history.mlp["Ill"],
-    Mutation=history.mlp["ML"],
-    )
