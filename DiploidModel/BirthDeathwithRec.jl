@@ -34,7 +34,7 @@ function DiploidModel2.birth!(ps, par)
     #select free index for offspring
     if isempty(par.indices["free"])
         offspring_index = length(par.traits) + 1
-        push!(par.traits,(spzeros(par.Nloci),spzeros(par.Nloci)))
+        push!(par.traits,emptytraits(par.Nloci))
     else
         offspring_index = pop!(par.indices["free"])
     end
@@ -54,7 +54,7 @@ function inittraits(par,n0)
     #Setup healthy genetic information
     locs = 1:par.Nloci
     #Generate healty population with some buffer for fluctuations
-    traits = [(spzeros(par.Nloci),spzeros(par.Nloci)) for _ in 1:round(Int,par.K + sqrt(par.K))]
+    traits = [emptytraits(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
     #add two mutations to completely healthy individuals to get the required number of ill individuals
     for i in 1:n0["Ill"]
         l = rand(locs)
@@ -77,6 +77,8 @@ function inittraits(par,n0)
     end
     return traits
 end
+
+emptytraits(Nloci) = [spzeros(Nloci),spzeros(Nloci)]
 
 function offspring!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information

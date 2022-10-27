@@ -198,7 +198,7 @@ plot_MLP(df::DataFrame) = plotmutationloadandprevalence(
 
 replace_NaN(v) = map(x -> isnan(x) ? zero(x) : x, v)
 
-function plot_MLHist(hhist,t,ylim,xlim,key="both")
+function plot_MLHist(hhist,t,popsize,ylim,xlim,key="both")
 	if key == "both"
 		h = hhist["Ill"][t] .+ hhist["Healthy"][t]
 		color = :blue
@@ -209,7 +209,7 @@ function plot_MLHist(hhist,t,ylim,xlim,key="both")
 	class, abs_freq = findnz(h)
 	#Indexing statrs with 1 but mutation load starts with 0
 	class .= class .- 1
-	rel_freq = abs_freq ./ sum(abs_freq)
+	rel_freq = abs_freq ./ popsize
 	bar(
 		class, rel_freq,
 		xlabel="Classes",
@@ -219,6 +219,70 @@ function plot_MLHist(hhist,t,ylim,xlim,key="both")
 		xlim = (-1,xlim),
 		ylim = (0,ylim),
 	)
+end
+
+function gif_MLP_LoadHist(history,abs_path,tend;everyn=100,maxfreq=0.25)
+	anim = @animate for t in 1:tend
+	    p1 = PlotFromDicts.plot_MLP(history.mlp)
+	    vline!([t])
+	    p2 = PlotFromDicts.plot_MLHist(history.loadhist,t,history.mlp["PopSize"][t],maxfreq,maxmutatioins(history.loadhist))
+	    vline!([history.mlp["ML"][t]/history.mlp["PopSize"][t]])
+	    plot(p1,p2,layout=(2,1),legend=false)
+	end every everyn
+
+	gif(anim, abs_path)
+end
+
+function plot_LoadPos(loadpos,t,popsize,ylim,xlim,key="both")
+	if key == "both"
+		h = loadpos["Ill"][t] .+ loadpos["Healthy"][t]
+		color = :blue
+	else
+		h = loadpos[key][t]
+		color = key=="Ill" ? :orange : :red
+	end
+	p = plot(ylim=ylim,xlim=xlim,legend=false,xlabel="Loci",ylabel="Frequency")
+	plot_LoadPos!(p,h,popsize,color)
+	return p
+end
+
+function plot_LoadPos!(p,h::SparseVector,ps,c,i)
+	class, abs_freq = findnz(h)
+	rel_freq = i .* (abs_freq ./ ps)
+	bar!(p,
+		class, rel_freq,
+		label="",
+		color = c,
+	)
+end
+
+function plot_LoadPos!(p,h::Vector{SparseVector{S,T}},ps,c) where {S<:Number,T<:Number}
+	plot_LoadPos!(p,h[1],ps,c,1)
+	plot_LoadPos!(p,h[2],ps,c,-1)
+end
+
+function gif_MLP_LoadPos(history,abs_path,tend;everyn=100,maxfreq=0.5)
+	anim = @animate for t in 1:tend
+	    p1 = PlotFromDicts.plot_MLP(history.mlp)
+	    vline!([t])
+	    p2 = PlotFromDicts.plot_LoadPos(
+			history.loadpos,t,
+			history.mlp["PopSize"][t],
+			(-maxfreq,maxfreq),
+			(0,history.par.Nloci+1)
+			)
+	    plot(p1,p2,layout=(2,1),legend=false)
+	end
+
+	gif(anim, abs_path)
+end
+
+function maxmutatioins(hhist,key="both")
+    if key=="both"
+        return max(findnz(hhist["Ill"][end])[1][end],findnz(hhist["Healthy"][end])[1][end])
+    else
+        return findnz(hhist[key][end])[1][end]
+    end
 end
 
 end #end of Module PlotFromDicts

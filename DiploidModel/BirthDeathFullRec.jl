@@ -23,7 +23,7 @@ function DiploidModel2.birth!(ps, par)
     #select free index for offspring
     if isempty(par.indices["free"])
         offspring_index = length(par.traits) + 1
-        push!(par.traits,spzeros(par.Nloci))
+        push!(par.traits,emptytrait(par.Nloci))
     else
         offspring_index = pop!(par.indices["free"])
     end
@@ -40,7 +40,7 @@ Only N positions are needed, if N diploid (!) genes are considered.
 """
 function inittraits(par,n0)
     locs = 1:par.Nloci
-    traits = [spzeros(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
+    traits = [emptytrait(par.Nloci) for _ in 1:round(Int,par.K + sqrt(par.K))]
     for i in 1:n0["Ill"]
         l = rand(locs)
         traits[i][l] = 2
@@ -57,6 +57,8 @@ function inittraits(par,n0)
     end
     return traits
 end
+
+emptytrait(Nloci) = spzeros(Nloci)
 
 function offspring!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information

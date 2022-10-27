@@ -1,6 +1,6 @@
 #Define Type for Population History
 struct MLPHistory
-    history :: Dict
+    mlp :: Dict
     par :: NamedTuple
 end
 
@@ -14,7 +14,13 @@ end
 DiploidModel2.choosestatsfunction(population_history::MLPHistory) = saveonestep!
 
 #and define your own saveonestep! function
-saveonestep!(ph::MLPHistory,index,ps,par) = DiploidModel2.Gillespie.saveonestep!(ph.history,index,ps,par)
+saveonestep!(ph::MLPHistory,index,ps,par) = DiploidModel2.Gillespie.saveonestep!(ph.mlp,index,ps,par)
 
 DiploidModel2.updatestats_death!(ps,par,index) = nothing
 DiploidModel2.updatestats_birth!(ps,par,index) = nothing
+
+historytodataframe(history::MLPHistory) = DataFrame(
+    PopSize=history.mlp["PopSize"],
+    Ill=history.mlp["Ill"],
+    Mutation=history.mlp["ML"],
+    )

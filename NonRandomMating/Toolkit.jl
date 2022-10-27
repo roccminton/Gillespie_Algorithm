@@ -107,7 +107,7 @@ file and saves it under the specific location.
 """
 function safe_plot(abs_path,filename,history)
         #plot simulation
-        plot_MLP(history)
+        PlotFromDicts.plot_MLP(history)
         #savefig
         savefig(abs_path*"Plots/"*filename*".pdf")
 end
@@ -115,18 +115,6 @@ end
 filename(K,dni,N) = "K=$K,dni=$dni,Nloci=$N"
 
 replace_NaN(v) = map(x -> isnan(x) ? zero(x) : x, v)
-
-"""
-Generates the Mutation Load and Prevalence Plot.
-"""
-plot_MLP(history) = PlotFromDicts.plotmutationloadandprevalence(
-                history["PopSize"],
-                replace_NaN(history["Ill"] ./ history["PopSize"]),
-                replace_NaN(history["ML"] ./ history["PopSize"]))
-plot_MLP(df::DataFrame) = PlotFromDicts.plotmutationloadandprevalence(
-                df.PopSize,
-                replace_NaN(df.Ill ./ df.PopSize),
-                replace_NaN(df.Mutation ./ df.PopSize))
 
 
 """

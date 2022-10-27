@@ -82,7 +82,7 @@ function setup_pop_hist end
 #use the default stats function from Gillespie
 choosestatsfunction(population_history) = Gillespie.saveonestep!
 #nothing to add
-addstatsparameter(par,ph,n0,l) = parameter
+addstatsparameter(ph,par,n0,l) = par
 
 #--- Rates Function
 """
@@ -150,14 +150,14 @@ function updateps_death!(ps,par,fey_index)
 end
 
 ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
-function ispropagable(a::Tuple{SparseVector,SparseVector})
+function ispropagable(a::Vector)
     for (i,gene) in enumerate(a[1])
         isone(gene) && isone(a[2][i]) && return false
     end
     return true
 end
 
-mutationload(a::Tuple{SparseVector,SparseVector}) = sum(sum(spvec) for spvec in a)
+mutationload(a::Vector) = sum(sum(spvec) for spvec in a)
 mutationload(a::SparseVector) = sum(a)
 
 #---
