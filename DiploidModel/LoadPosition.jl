@@ -28,8 +28,8 @@ function saveonestep!(ph::LoadPosMLP,index,ps,par)
     savehistdata!(ph.loadpos,index,ps,par)
 end
 
-DiploidModel2.updatestats_death!(ps,par,index) = update_histogram!(par.cloadposhist,par.traits[index],-1)
-DiploidModel2.updatestats_birth!(ps,par,index) = update_histogram!(par.cloadposhist,par.traits[index],+1)
+DiploidModel2.updatestats_death!(ps,par,index) = update_histogram!(par.cloadpos,par.traits[index],-1)
+DiploidModel2.updatestats_birth!(ps,par,index) = update_histogram!(par.cloadpos,par.traits[index],+1)
 
 #---
 
@@ -44,8 +44,8 @@ function initialhistogram(par,n0)
 end
 
 function savehistdata!(hhist,index,n0,par)
-        hhist["Healthy"][index] .= par.cloadposhist["Healthy"]
-        hhist["Ill"][index] .= par.cloadposhist["Ill"]
+        hhist["Healthy"][index] .= par.cloadpos["Healthy"]
+        hhist["Ill"][index] .= par.cloadpos["Ill"]
 end
 
 function update_histogram!(hist,ind,i)

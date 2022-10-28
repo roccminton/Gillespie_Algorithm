@@ -13,13 +13,6 @@ function initpopulation(popsize,ML,Ill)
     end
 end
 
-historytodataframe(history) = DataFrame(
-    PopSize=history["PopSize"],
-    Ill=history["Ill"],
-    Mutation=history["ML"],
-    Ccuts = vcat(history["cutsat"],fill(NaN,length(history["PopSize"])-length(history["cutsat"])))
-    )
-
 function timesfromswitches(totaltime,switches)
     times = Vector{typeof(totaltime)}(undef,length(switches)+1)
     tstart = 1
@@ -74,8 +67,8 @@ end
 function loadhisttodataframe(history, folder_abs_path, name_ext = "")
     max_load = PlotFromDicts.maxmutatioins(history.loadhist)
     tend = history.par.historylength
-    df_ill = empty_dataframe(max_load,tend,0,Integer)
-    df_healthy = empty_dataframe(max_load,tend,0,Integer)
+    df_ill = empty_dataframe(max_load,tend,zero(Integer),0)
+    df_healthy = empty_dataframe(max_load,tend,zero(Integer),0)
 
     populate_df_loadhist!(df_ill,history.loadhist["Ill"],tend)
     populate_df_loadhist!(df_healthy,history.loadhist["Healthy"],tend)
@@ -86,21 +79,10 @@ function loadhisttodataframe(history, folder_abs_path, name_ext = "")
     return df_ill, df_healthy
 end
 
-empty_dataframe(ncols,nrows,startat=1,type=Float64) = DataFrame([Symbol(i) => zeros(type,nrows) for i in startat:startat+ncols-1])
-historylength(history) = length(history.mlp["PopSize"])
-
-function populate_df_loadhist!(df,lh,tend)
-    for t in 1:tend
-        for (class, n) in zip(findnz(lh[t])...)
-            df[t,class] += n
-        end
-    end
-end
-
 function loadpostodataframe(history, folder_abs_path, name_ext = "")
     tend = history.par.historylength
-    df_ill = empty_dataframe(history.par.Nloci,tend,1,Tuple{Integer,Integer})
-    df_healthy = empty_dataframe(history.par.Nloci,tend,1,Tuple{Integer,Integer})
+    df_ill = empty_dataframe(history.par.Nloci,tend,zeros(Integer,2))
+    df_healthy = empty_dataframe(history.par.Nloci,tend,zeros(Integer,2))
 
     populate_df_loadpos!(df_ill,history.loadpos["Ill"],tend)
     populate_df_loadpos!(df_healthy,history.loadpos["Healthy"],tend)
@@ -109,6 +91,18 @@ function loadpostodataframe(history, folder_abs_path, name_ext = "")
     CSV.write(folder_abs_path * "/LoadPos_Healthy" * name_ext * ".csv", df_healthy)
 
     return df_ill, df_healthy
+end
+
+empty_dataframe(ncols,nrows,zero::Number,startat=1) = DataFrame([Symbol(i) => [zero for _ in 1:nrows] for i in startat:startat+ncols-1])
+empty_dataframe(ncols,nrows,zero::Vector,startat=1) = DataFrame([Symbol(i) => [copy(zero) for _ in 1:nrows] for i in startat:startat+ncols-1])
+historylength(history) = length(history.mlp["PopSize"])
+
+function populate_df_loadhist!(df,lh,tend)
+    for t in 1:tend
+        for (class, n) in zip(findnz(lh[t])...)
+            df[t,class] += n
+        end
+    end
 end
 
 function populate_df_loadpos!(df,lh,tend) where {S<:Number,T<:Number}
@@ -133,5 +127,3 @@ function populate_df_loadpos_t!(df,lp::SparseVector,t)
         df[t,class] += n
     end
 end
-
-Base.zero(::Type{Tuple{Integer,Integer}}) = (zero(Integer),zero(Integer))
