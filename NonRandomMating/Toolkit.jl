@@ -22,6 +22,14 @@ using CSV
 using DataFrames
 using Plots
 using SparseArrays
+using Distributions
+using Random
+
+include("/home/larocca/github/Gillespie_Algorithm/DiploidModel/AdditionalFunctions.jl")
+#choose birht death functions package
+include("/home/larocca/github/Gillespie_Algorithm/DiploidModel/BirthDeathFullRec.jl")
+#choose stats function package
+include("/home/larocca/github/Gillespie_Algorithm/DiploidModel/SummaryStats.jl")
 
 """
 Returns a named tuple parameter set for Gillespie algorithm
@@ -69,9 +77,9 @@ function execute_and_mean(K,dni,N,tend,n,ex_func)
         hs = [ex_func(K,dni,N,tend) for _ in 1:n]
         return Dict(
                 k => [
-                        mean(hs[i][k][t] for i ∈ 1:n)
+                        mean(hs[i].mlp[k][t] for i ∈ 1:n)
                 for t ∈ 1:tend+1]
-        for k in keys(hs[1]))
+        for k in keys(hs[1].mlp))
 end
 
 """
@@ -91,6 +99,13 @@ function save_histogram(abs_path,filename,history)
         CSV.write(
                 abs_path * "Data/" *filename,
                 histogramtodataframe(history)
+        )
+end
+
+function save_dataframe(abs_path, filename, df)
+        CSV.write(
+                abs_path* "/" *filename,
+                df
         )
 end
 
@@ -148,8 +163,8 @@ function get_equilibrium(Ns,dnis,Ks,tend,ex_func=execute_cont)
                 println("Currently at N=$N,dni=$dni,K=$K")
                 row = Float64[N,dni,K]
                 #number of runs depend on average size
-                n = ceil(Int,10_000/K)
-                n=1
+                #n = ceil(Int,10_000/K)
+                n=3
                 history=execute_and_mean(K,dni,N,tend,n,ex_func)
                 popsize = averageoverlast(history,"PopSize",last)
                 push!(row,popsize)

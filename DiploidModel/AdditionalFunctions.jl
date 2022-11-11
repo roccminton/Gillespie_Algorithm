@@ -127,3 +127,55 @@ function populate_df_loadpos_t!(df,lp::SparseVector,t)
         df[t,class] += n
     end
 end
+
+#---
+
+function executentimes(; rec = 0, dni = 0.6, N = 60, n = 3)
+    #Carrying Capacity
+    K = 10_000
+    #Number of Generations
+    tend = 100_000
+    #path to save data at
+    abs_path = "/home/larocca/github/Gillespie_Algorithm/DiploidModel/Data/NoRecombination"
+    #model parameter
+    pars = (
+        birth = 1.0,
+        death = 0.9,
+        competition = (1.0 - 0.9) / K,
+        μ = dni,
+        Nloci = N,
+        K = K,
+        rates = "allbirthrates!",
+        recombination = rec,
+    )
+
+    abs_path = create_path(abs_path,pars)
+
+    #execute simulation
+    for i = 1:n
+        history = DiploidModel2.rungillespie(
+            1:tend,
+            generatehealthypopulation(K),
+            pars,
+        )
+        #save all statistics
+        mlptodataframe(history,abs_path,"_$i")
+        loadhisttodataframe(history,abs_path,"_$i")
+        loadpostodataframe(history,abs_path,"_$i")
+        #save gif
+        PlotFromDicts.gif_MLP_LoadPos_LoadHis(history,abs_path * "/gif_all_$i.gif",tend)
+        #save mlp plot
+        PlotFromDicts.plot_MLP(history.mlp,abs_path * "/mlp_plot_$i.pdf")
+        saveparameter(history.par,abs_path * "/parameter.txt")
+    end
+end
+
+function executeoverragne(; rec = [0], dni = 0.1:0.1:1.0, N = [60], n = 3)
+    for r in rec
+        for d in dni
+            for g in N
+                executentimes(rec = r, dni = d, N = g, n = n)
+            end
+        end
+    end
+end
