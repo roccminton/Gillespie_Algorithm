@@ -71,13 +71,13 @@ function mainiteration!(pop_hist,rates,n0,ct,time,par,ex!::F1,r!::F2,stat!::F3,h
         #execute one step of the simulation
         ct = onestep!(n0,rates,ct,step,par,ex!,r!)
         #check if step was completed or evolution stopped inbetween
-        @fastmath step-ct > 0.0 && (stop!(pop_hist,index,n0,par); break)
+        @fastmath step-ct > 0.0 && (stop!(pop_hist,index,n0,par,stat!); break)
     end
 end
 
 historylength(population_history::Vector,par) = length(population_history)
 historylength(population_history::Matrix,par) = length(view(population_history,:,1))
-historylength(population_history::Dict,par) = par.historylength
+historylength(population_history,par) = par.historylength
 
 function dropzeros!(ps::Dict{<:Any,<:Number})
     for (x,nₓ) ∈ ps
@@ -117,9 +117,9 @@ function saveonestep!(pop_hist,index,ps,par)
     view(pop_hist,index,:) .= ps
 end
 
-function stop!(pop_hist,index,n0,par)
+function stop!(pop_hist,index,n0,par,stat!::F1) where {F1}
     for i ∈ index+1:historylength(pop_hist,par)
-        saveonestep!(pop_hist,i,n0,par)
+        stat!(pop_hist,i,n0,par)
     end
     nothing
 end

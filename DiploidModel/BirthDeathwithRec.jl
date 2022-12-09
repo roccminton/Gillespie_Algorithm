@@ -106,7 +106,7 @@ end
 """
 function initcuts(par)
     if par.recombination == 1
-        return []
+        return [i:i for i in 1:par.Nloci]
     else
         cutsat = sort!(sample(1:par.Nloci-1,rand(Poisson(par.recombination*par.Nloci)),replace=false))
         isempty(cutsat) && return [1:par.Nloci]
