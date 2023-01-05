@@ -8,8 +8,8 @@ end
 
 function DiploidModel2.setup_pop_hist(par,n₀,l)
     loadpos = Dict(
-            "Healthy"=>[emptytraits(par.Nloci) for _ in 1:l],
-            "Ill"=>[emptytraits(par.Nloci) for _ in 1:l]
+            "Healthy"=>[emptytraits(par.Nloci,Int64) for _ in 1:l],
+            "Ill"=>[emptytraits(par.Nloci,Int64) for _ in 1:l]
             )
     loadhist = Dict(
             "Healthy"=>[emptyhistorgram(par) for _ in 1:l],
@@ -35,13 +35,33 @@ function saveonestep!(ph::MLPLoadHistLoadPos,index,ps,par)
 end
 
 function DiploidModel2.updatestats_death!(ps,par,index)
-    update_loadpos!(par.cloadpos,par.traits[index],-1)
-    update_loadhist!(par.cloadhist,par.traits[index],-1)
+    update_loadpos!(par.cloadpos,par.traits[index],-1,par.Nloci)
+    update_loadhist!(par.cloadhist,par.traits[index],-1,par.Nloci)
 end
 
 function DiploidModel2.updatestats_birth!(ps,par,index)
-    update_loadpos!(par.cloadpos,par.traits[index],+1)
-    update_loadhist!(par.cloadhist,par.traits[index],+1)
+    update_loadpos!(par.cloadpos,par.traits[index],+1,par.Nloci)
+    update_loadhist!(par.cloadhist,par.traits[index],+1,par.Nloci)
+end
+
+#overwrite JLD function for to save data as Matrix instead of Vec(Vec)
+function convertforsaving(h)
+    safe_h = Dict{String,Any}()
+    #safe mlp as it is
+    merge!(safe_h,h.mlp)
+    #change key and converet to matrix
+    for (key,value) in h.loadhist
+        safe_h["LoadHist" * key] = hcat(value...)
+    end
+    #loadpos
+    for (key,value) in h.loadpos
+        safe_h["LoadPos" * key] = hcat([vcat(d...) for d in value]...)
+    end
+    #safe all the parameters as seperate entries
+    for (k,v) in zip(keys(h.par),h.par)
+        safe_h[String(k)] = v
+    end
+    return safe_h
 end
 
 #---
@@ -53,9 +73,9 @@ DiploidModel2.addstatsparameter(ph::MLPLoadHistLoadPos,par,n0,l) = (
     )
 
 function initialloadpos(par,n0)
-    hist = Dict("Healthy" => emptytraits(par.Nloci), "Ill" => emptytraits(par.Nloci))
+    hist = Dict("Healthy" => emptytraits(par.Nloci,Int64), "Ill" => emptytraits(par.Nloci,Int64))
     for ind ∈ par.traits[1:n0["PopSize"]]
-        update_loadpos!(hist,ind,1)
+        update_loadpos!(hist,ind,1,par.Nloci)
     end
     return hist
 end
@@ -63,7 +83,7 @@ end
 function initialloadhist(par,n0)
     hist = Dict("Healthy" => emptyhistorgram(par), "Ill" => emptyhistorgram(par))
     for ind ∈ par.traits[1:n0["PopSize"]]
-        update_loadhist!(hist,ind,1)
+        update_loadhist!(hist,ind,1,par.Nloci)
     end
     return hist
 end
@@ -73,26 +93,25 @@ function savehistdata!(hhist,index,n0,chist)
         hhist["Ill"][index] .= chist["Ill"]
 end
 
-
-function update_loadpos!(hist,ind,i)
-    if DiploidModel2.ispropagable(ind)
+function update_loadpos!(hist,ind,i,Nloci)
+    if DiploidModel2.ispropagable(ind,Nloci)
         hist["Healthy"] .+= i .* ind
     else
         hist["Ill"] .+= i .* ind
     end
 end
 
-function update_loadhist!(hist,ind,i)
-    if DiploidModel2.ispropagable(ind)
-        hist["Healthy"][round(Integer,DiploidModel2.mutationload(ind)+1)] += i
+function update_loadhist!(hist,ind,i,Nloci)
+    if DiploidModel2.ispropagable(ind,Nloci)
+        hist["Healthy"][round(Int64,DiploidModel2.mutationload(ind)+1)] += i
     else
-        hist["Ill"][round(Integer,DiploidModel2.mutationload(ind)+1)] += i
+        hist["Ill"][round(Int64,DiploidModel2.mutationload(ind)+1)] += i
     end
 end
 
 #---
 
-maxmutationload(Nloci,μ,K) = Nloci + quantile(Poisson(μ),1-1/K)
+maxmutationload(Nloci,μ,K) = Nloci + quantile(Poisson(μ),1-1/K^2)
 maxmutationload(model_parameter) = maxmutationload(model_parameter.Nloci,model_parameter.μ,model_parameter.K)
 
-emptyhistorgram(par) = spzeros(Integer,maxmutationload(par))
+emptyhistorgram(par) = spzeros(Int64,maxmutationload(par))

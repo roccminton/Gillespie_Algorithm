@@ -78,7 +78,7 @@ function inittraits(par,n0)
     return traits
 end
 
-emptytraits(Nloci) = [spzeros(Nloci),spzeros(Nloci)]
+emptytraits(Nloci,T=Bool) = [spzeros(T,Nloci),spzeros(T,Nloci)]
 
 function offspring!(offspring_index, par, n_mut)
     #randomly recombine the parental genetic information
