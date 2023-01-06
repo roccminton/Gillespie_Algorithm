@@ -3,6 +3,7 @@ struct MLPLoadHistLoadPos
     mlp :: Dict
     loadhist :: Dict
     loadpos :: Dict
+    types :: Vector
     par :: NamedTuple
 end
 
@@ -16,7 +17,8 @@ function DiploidModel2.setup_pop_hist(par,n₀,l)
             "Ill"=>[emptyhistorgram(par) for _ in 1:l]
             )
     mlp = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
-    return MLPLoadHistLoadPos(mlp,loadhist,loadpos,par)
+    types = [emptytypes(par) for _ in 1:l]
+    return MLPLoadHistLoadPos(mlp,loadhist,loadpos,types,par)
 end
 
 #overwrite the basic choice of the default saveonestep function in Gillespie if necessary
@@ -32,16 +34,20 @@ function saveonestep!(ph::MLPLoadHistLoadPos,index,ps,par)
     savehistdata!(ph.loadpos,index,ps,par.cloadpos)
     #save the histogram History
     savehistdata!(ph.loadhist,index,ps,par.cloadhist)
+    #safe the types History
+    savelistdata!(ph.types,index,ps,par.ctypes)
 end
 
 function DiploidModel2.updatestats_death!(ps,par,index)
     update_loadpos!(par.cloadpos,par.traits[index],-1,par.Nloci)
     update_loadhist!(par.cloadhist,par.traits[index],-1,par.Nloci)
+    update_types!(par.ctypes,par.traits[index],-1,par)
 end
 
 function DiploidModel2.updatestats_birth!(ps,par,index)
     update_loadpos!(par.cloadpos,par.traits[index],+1,par.Nloci)
     update_loadhist!(par.cloadhist,par.traits[index],+1,par.Nloci)
+    update_types!(par.ctypes,par.traits[index],+1,par)
 end
 
 #change data for better storage
@@ -54,7 +60,7 @@ function convertforsaving(h)
     safe_h = Dict{String,Any}()
     #safe mlp as it is
     merge!(safe_h,h.mlp)
-    #change key and converet to matrix
+    #loadhist
     for (key,value) in h.loadhist
         safe_h["LoadHist" * key] = hcat(value...)
     end
@@ -62,6 +68,8 @@ function convertforsaving(h)
     for (key,value) in h.loadpos
         safe_h["LoadPos" * key] = hcat([vcat(d...) for d in value]...)
     end
+    #types
+    safe_h["Types"] = hcat(h.types...)
     #safe all the parameters as seperate entries
     for (k,v) in zip(keys(h.par),h.par)
         key = String(k)
@@ -72,11 +80,19 @@ end
 
 #---
 
-DiploidModel2.addstatsparameter(ph::MLPLoadHistLoadPos,par,n0,l) = (
-    par...,
-    cloadpos = initialloadpos(par,n0),
-    cloadhist = initialloadhist(par,n0)
+function DiploidModel2.addstatsparameter(ph::MLPLoadHistLoadPos,par,n0,l)
+    base2 = [
+        [2^n for n in 0:par.Nloci-1],
+        [2^n for n in par.Nloci:2*par.Nloci-1]]
+    return (
+        par...,
+        cloadpos = initialloadpos(par,n0),
+        cloadhist = initialloadhist(par,n0),
+        ctypes = initialtypes(par,n0,base2),
+        base2 = base2,
+        dump = [Vector{Int64}(undef,par.Nloci),Vector{Int64}(undef,par.Nloci)]
     )
+end
 
 function initialloadpos(par,n0)
     hist = Dict("Healthy" => emptytraits(par.Nloci,Int64), "Ill" => emptytraits(par.Nloci,Int64))
@@ -94,9 +110,21 @@ function initialloadhist(par,n0)
     return hist
 end
 
+function initialtypes(par,n0,base2)
+    types = emptytypes(par)
+    for ind ∈ par.traits[1:n0["PopSize"]]
+        types[indvtodec_nopar(ind,base2)+1] += 1
+    end
+    return types
+end
+
 function savehistdata!(hhist,index,n0,chist)
         hhist["Healthy"][index] .= chist["Healthy"]
         hhist["Ill"][index] .= chist["Ill"]
+end
+
+function savelistdata!(hlist,index,n0,clist)
+        hlist[index] .= clist
 end
 
 function update_loadpos!(hist,ind,i,Nloci)
@@ -123,9 +151,24 @@ function do_update_loadhist!(hist,key,load,i)
     hist[key][load] += i
 end
 
+function update_types!(types,ind,i,par)
+    types[indvtodec(ind,par)+1] += i
+end
+
 #---
 
 maxmutationload(Nloci,μ,K) = Nloci + quantile(Poisson(μ),1-1/K^2)
 maxmutationload(model_parameter) = maxmutationload(model_parameter.Nloci,model_parameter.μ,model_parameter.K)
 
 emptyhistorgram(par) = zeros(Int64,maxmutationload(par))
+emptytypes(par) = zeros(Int64,ntypes(par))
+
+ntypes(par) = 2^(2*par.Nloci)
+
+function indvtodec(ind,par)
+    for i in par.choosecopyfrom #1:2
+        broadcast!(*,par.dump[i],ind[i] .* par.base2[i])
+    end
+    return round(Int64,sum(par.dump[1])+sum(par.dump[2]))
+end
+indvtodec_nopar(ind,base2) = sum(sum(i.*b for (i,b) in zip(ind,base2)))
