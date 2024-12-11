@@ -1,9 +1,12 @@
+using Tullio
+using LoopVectorization
+
 #Define Type for Population History
 struct MLPLoadHistLoadPos
     mlp :: Dict
     loadhist :: Dict
     loadpos :: Dict
-    types :: Vector
+    hamdistvec :: Vector
     par :: NamedTuple
 end
 
@@ -17,8 +20,8 @@ function DiploidModel2.setup_pop_hist(par,n₀,l)
             "Ill"=>[emptyhistorgram(par) for _ in 1:l]
             )
     mlp = Dict(x=>zeros(valtype(n₀),l) for x in keys(n₀))
-    types = [emptytypes(par) for _ in 1:l]
-    return MLPLoadHistLoadPos(mlp,loadhist,loadpos,types,par)
+    hamdistvec = Vector{Matrix{Integer}}(undef,l)
+    return MLPLoadHistLoadPos(mlp,loadhist,loadpos,hamdistvec,par)
 end
 
 #overwrite the basic choice of the default saveonestep function in Gillespie if necessary
@@ -34,20 +37,18 @@ function saveonestep!(ph::MLPLoadHistLoadPos,index,ps,par)
     savehistdata!(ph.loadpos,index,ps,par.cloadpos)
     #save the histogram History
     savehistdata!(ph.loadhist,index,ps,par.cloadhist)
-    #safe the types History
-    savelistdata!(ph.types,index,ps,par.ctypes)
+    #calculate and save covariance matrix
+    savehammingdistance!(ph.hamdistvec,index,ps,par)
 end
 
 function DiploidModel2.updatestats_death!(ps,par,index)
-    update_loadpos!(par.cloadpos,par.traits[index],-1,par.Nloci)
-    update_loadhist!(par.cloadhist,par.traits[index],-1,par.Nloci)
-    update_types!(par.ctypes,par.traits[index],-1,par)
+    update_loadpos!(par.cloadpos,par.traits[index],-1)
+    update_loadhist!(par.cloadhist,par.traits[index],-1)
 end
 
 function DiploidModel2.updatestats_birth!(ps,par,index)
-    update_loadpos!(par.cloadpos,par.traits[index],+1,par.Nloci)
-    update_loadhist!(par.cloadhist,par.traits[index],+1,par.Nloci)
-    update_types!(par.ctypes,par.traits[index],+1,par)
+    update_loadpos!(par.cloadpos,par.traits[index],+1)
+    update_loadhist!(par.cloadhist,par.traits[index],+1)
 end
 
 #change data for better storage
@@ -62,14 +63,15 @@ function convertforsaving(h)
     merge!(safe_h,h.mlp)
     #loadhist
     for (key,value) in h.loadhist
+        levelhists!(value)
         safe_h["LoadHist" * key] = hcat(value...)
     end
     #loadpos
     for (key,value) in h.loadpos
         safe_h["LoadPos" * key] = hcat([vcat(d...) for d in value]...)
     end
-    #types
-    safe_h["Types"] = hcat(h.types...)
+    #haploid loadhist
+    safe_h["HammDistList"] = h.hamdistvec
     #safe all the parameters as seperate entries
     for (k,v) in zip(keys(h.par),h.par)
         key = String(k)
@@ -78,26 +80,33 @@ function convertforsaving(h)
     return safe_h
 end
 
+function levelhists!(histlist)
+    maxlength = maximum(length.(histlist))
+    for hist in histlist
+        while length(hist)<maxlength
+            push!(hist,zero(eltype(hist)))
+        end
+    end
+end
 #---
 
 function DiploidModel2.addstatsparameter(ph::MLPLoadHistLoadPos,par,n0,l)
-    base2 = [
-        [2^n for n in 0:par.Nloci-1],
-        [2^n for n in par.Nloci:2*par.Nloci-1]]
+    samplesize = 1000
     return (
         par...,
+        samplesize = samplesize,
+        sampleindices = Vector{Integer}(undef,samplesize),
+        samplechromosome = rand(par.choosecopyfrom,samplesize),
         cloadpos = initialloadpos(par,n0),
         cloadhist = initialloadhist(par,n0),
-        ctypes = initialtypes(par,n0,base2),
-        base2 = base2,
-        dump = [Vector{Int64}(undef,par.Nloci),Vector{Int64}(undef,par.Nloci)]
-    )
+        loadmeans = zeros(Float64,par.Nloci),
+        )
 end
 
 function initialloadpos(par,n0)
     hist = Dict("Healthy" => emptytraits(par.Nloci,Int64), "Ill" => emptytraits(par.Nloci,Int64))
     for ind ∈ par.traits[1:n0["PopSize"]]
-        update_loadpos!(hist,ind,1,par.Nloci)
+        update_loadpos!(hist,ind,1)
     end
     return hist
 end
@@ -105,17 +114,9 @@ end
 function initialloadhist(par,n0)
     hist = Dict("Healthy" => emptyhistorgram(par), "Ill" => emptyhistorgram(par))
     for ind ∈ par.traits[1:n0["PopSize"]]
-        update_loadhist!(hist,ind,1,par.Nloci)
+        update_loadhist!(hist,ind,1)
     end
     return hist
-end
-
-function initialtypes(par,n0,base2)
-    types = emptytypes(par)
-    for ind ∈ par.traits[1:n0["PopSize"]]
-        types[indvtodec_nopar(ind,base2)+1] += 1
-    end
-    return types
 end
 
 function savehistdata!(hhist,index,n0,chist)
@@ -123,36 +124,49 @@ function savehistdata!(hhist,index,n0,chist)
         hhist["Ill"][index] .= chist["Ill"]
 end
 
-function savelistdata!(hlist,index,n0,clist)
-        hlist[index] .= clist
+function savehammingdistance!(hamdistvec,index,n0,par)
+    #initialize hamming distance matrix
+    H = Matrix{Integer}(undef,(2,par.samplesize))
+    #choose random individual for comparison
+    rand!(par.sampleindices,vcat(par.indices["healthy"],par.indices["ill"]))
+    #set individual to compare with
+    compareind_index = par.sampleindices[1]
+    #iterate through individuals
+    for (n,(ind_index,chroms)) in enumerate(zip(par.sampleindices,par.samplechromosome))
+        for j in par.choosecopyfrom
+            H[j,n] = hammingdistance(ind_index,compareind_index,chroms,j,par)
+        end
+    end
+    #safe
+    hamdistvec[index] = H
 end
 
-function update_loadpos!(hist,ind,i,Nloci)
-    if DiploidModel2.ispropagable(ind,Nloci)
+#calculation of hamming distance
+hammingdistance(ind_index,compareind_index,i,j,par) = sum(x != y for (x,y) in zip(par.traits[ind_index][i],par.traits[compareind_index][j]))
+
+
+function update_loadpos!(hist,ind,i)
+    if DiploidModel2.ispropagable(ind)
         hist["Healthy"] .+= i .* ind
     else
         hist["Ill"] .+= i .* ind
     end
 end
 
-function update_loadhist!(hist,ind,i,Nloci)
+function update_loadhist!(hist,ind,i)
     load = round(Integer,DiploidModel2.mutationload(ind)+1)
-    if DiploidModel2.ispropagable(ind,Nloci)
-        do_update_loadhist!(hist,"Healthy",load,i)
+    if DiploidModel2.ispropagable(ind)
+        update_loadhist!(hist,"Healthy",load,i)
     else
-        do_update_loadhist!(hist,"Ill",load,i)
+        update_loadhist!(hist,"Ill",load,i)
     end
 end
 
-function do_update_loadhist!(hist,key,load,i)
+function update_loadhist!(hist,key,load,i)
     while !checkbounds(Bool, hist[key],load)
-        push!(hist[key],1)
+        push!(hist[key],0)
     end
     hist[key][load] += i
-end
-
-function update_types!(types,ind,i,par)
-    types[indvtodec(ind,par)+1] += i
 end
 
 #---
@@ -160,15 +174,4 @@ end
 maxmutationload(Nloci,μ,K) = Nloci + quantile(Poisson(μ),1-1/K^2)
 maxmutationload(model_parameter) = maxmutationload(model_parameter.Nloci,model_parameter.μ,model_parameter.K)
 
-emptyhistorgram(par) = zeros(Int64,maxmutationload(par))
-emptytypes(par) = zeros(Int64,ntypes(par))
-
-ntypes(par) = 2^(2*par.Nloci)
-
-function indvtodec(ind,par)
-    for i in par.choosecopyfrom #1:2
-        broadcast!(*,par.dump[i],ind[i] .* par.base2[i])
-    end
-    return round(Int64,sum(par.dump[1])+sum(par.dump[2]))
-end
-indvtodec_nopar(ind,base2) = sum(sum(i.*b for (i,b) in zip(ind,base2)))
+emptyhistorgram(par) = spzeros(Integer,maxmutationload(par))

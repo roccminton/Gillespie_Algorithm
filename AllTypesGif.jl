@@ -6,6 +6,7 @@ using SparseArrays
 using Distributions
 using ProgressMeter
 using LaTeXStrings
+using CSV
 
 include("NonRandomMating/Toolkit.jl")
 include("Plotting.jl")
@@ -90,16 +91,16 @@ function scatter_population(data,xcenter,ycenter,xyunique=unique!(collect(zip(xc
     return p
 end
 
-function create_gif_N2(data,abs_path,filename;giflength=1000,tend=100000)
+function create_gif_N2(data,abs_path,filename;giflength=1000,tend=100000,tstart=1)
     p = Progress(giflength)
 
     x_center=[0,2,-2,-1,2,3,1,2,-2,1,-3,-2,-1,2,-2,0]
     y_center=[4,2,2,0,2,0,0,-2,2,0,0,-2,0,-2,-2,-4]
     xyunique=[(0,4),(-2,2),(2,2),(-3,0),(-1,0),(1,0),(3,0),(-2,-2),(2,-2),(0,-4)]
 
-    anim = @animate for t ∈ round.(Int64,range(1,tend;length=giflength))
+    anim = @animate for t ∈ round.(Int64,range(tstart,tend;length=giflength))
         #mlp
-        mlp = PlotFromDicts.plot_MLP(data)
+        mlp = PlotFromDicts.plot_MLP(data,tend,tstart=tstart)
         vline!(mlp,[t],label="")
         #mutation class histogram
         hist = plot(
@@ -118,25 +119,24 @@ function create_gif_N2(data,abs_path,filename;giflength=1000,tend=100000)
         next!(p)
     end
 
-    return gif(anim,abs_path * "$(i)_pop.gif")
+    return gif(anim,abs_path * filename * "$(i)_pop.gif")
 end
 
 
-# K = 10000
-# dni=10
-# N=2
-# i=1
-# tend = 25000
+K = 10000
+dni=10
+N=2
+i=1
+tstart=400
+tend = 1000
 
-#abs_path = "/home/larocca/github/Gillespie_Algorithm/DiploidModel/Data/NoRecombination/K=$K,dni=$dni,N=$N/"
-#filename = "allstats"
+abs_path = "/home/larocca/github/Gillespie_Algorithm/DiploidModel/Data/NoRecombination/K=$K,dni=$dni,N=$N/"
+filename = "allindv"
 
-#h = ToolkitNRM.execute_cont(K,dni,N,tend)
-#save(abs_path * filename *"_data_$i.jld",ToolkitNRM.convertforsaving(h))
-#PlotFromDicts.plot_MLP(h.mlp)
-#d = load(abs_path * filename *"_data_$i.jld")
-#data = load(abs_path*filename*"_data_$i.jld")
-#create_covmatrixgif(data["covmatrix"],data["mlp"],length(data["mlp"]["PopSize"]),abs_path,filename*"_covmatrix")
+#d = load(abs_path * filename *"1$i.jld")
 
+#create_gif_N2(d,abs_path,filename*"_zoom";giflength=tend-tstart,tend=tend,tstart=tstart)
 
-#create_gif_N2(d,abs_path,filename;giflength=10,tend=tend)
+# s = size(d["Types"])
+# df = DataFrame(transpose(d["Types"]), [bitstring(i-1)[end-3:end] for i in 1:first(s)])
+# CSV.write(abs_path *"allTypes.csv",df)

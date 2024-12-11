@@ -10,6 +10,24 @@ function DiploidModel2.setup_pop_hist(par,n₀,l)
     return MLPHistory(history,par)
 end
 
+#change data for better storage
+function convertforsaving(h)
+    #list all the parameters worth saving
+    safe_parameter=[
+        "death","μ","Nloci","historylength","ccuts","recombination",
+        "competition", "birth", "rates", "K",
+        ]
+    safe_h = Dict{String,Any}()
+    #safe mlp as it is
+    merge!(safe_h,h.mlp)
+    #safe all the parameters as seperate entries
+    for (k,v) in zip(keys(h.par),h.par)
+        key = String(k)
+        key ∈ safe_parameter && (safe_h[key] = v)
+    end
+    return safe_h
+end
+
 #overwrite the basic choice of the default saveonestep function in Gillespie if necessary
 DiploidModel2.choosestatsfunction(population_history::MLPHistory) = saveonestep!
 

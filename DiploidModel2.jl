@@ -51,14 +51,14 @@ function rungillespie(time,n₀,model_parameter)
     #add additional parameter for backend
     parameter = setupparameter(model_parameter,n₀,l)
 
+    #add additional info to the parameter tuple according to the history type
+    parameter = addstatsparameter(parameter,n₀,l)
+
     #setup empty population history
     population_history = setup_pop_hist(parameter,n₀,l)
 
     #choose statistic function
     statistic! = choosestatsfunction(population_history)
-
-    #add additional info to the parameter tuple according to the history type
-    parameter = addstatsparameter(population_history,parameter,n₀,l)
 
     #execute simulation
     Gillespie.run_gillespie!(
@@ -70,6 +70,9 @@ function rungillespie(time,n₀,model_parameter)
         population_history,
         statistic! = statistic!
         )
+
+    #close any open files
+    haskey(parameter,:file) && close(parameter.file)
 
     return population_history
 end
@@ -130,7 +133,7 @@ function death!(ps, par)
 end
 
 function updateps_birth!(ps,par,offspring_index)
-    if ispropagable(par.traits[offspring_index])
+    if ispropagable(par.traits[offspring_index],par.Nloci)
         push!(par.indices["healthy"],offspring_index)
     else
         ps["Ill"] += 1
@@ -149,16 +152,24 @@ function updateps_death!(ps,par,fey_index)
     updatestats_death!(ps,par,fey_index)
 end
 
-ispropagable(a::SparseVector) = !(2 ∈ a.nzval)
+ispropagable(a::SparseVector{Int64,Int64}) = !(2 ∈ a.nzval)
+ispropagable(a::SparseVector{Int64,Int64},Nloci) = ispropagable(a)
+function ispropagable(a::SparseVector{Bool,Int64},Nloci)
+    for p in 1:Nloci
+        a[p] && a[Nloci+p] && return false
+    end
+    return true
+end
+ispropagable(a::Vector,Nloci) = ispropagable(a)
 function ispropagable(a::Vector)
-    for (i,gene) in enumerate(a[1])
-        isone(gene) && isone(a[2][i]) && return false
+    for (i,p) in enumerate(a[1])
+        isone(p) && isone(a[2][i]) && return false
     end
     return true
 end
 
-mutationload(a::Vector) = sum(sum(spvec) for spvec in a)
 mutationload(a::SparseVector) = sum(a)
+mutationload(a::Vector) = sum(sum(svec) for svec in a)
 
 #---
 

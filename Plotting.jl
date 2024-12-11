@@ -71,7 +71,7 @@ end
 
 function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(length(popsize)-1))
 	#setting values
-	ticksfontsize = 5
+	ticksfontsize = 7#5
 
 	#setup plot
 	p = plot(size = (600,300),
@@ -85,7 +85,82 @@ function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(l
 			xtickfontsize=ticksfontsize,
 			)
 	#plot population size in background
-	popticks = floor.(Int,eventicks(time[end],4))
+	popticks = floor.(Int,eventicks(time[end],4,time[1]))
+	plot!(p,time,popsize,
+		grid = false, label = "",
+		color = Gray(0.2), alpha = 0.7,
+		yticks = false,
+		ylims = (0,maximum(popsize)*1.01),
+		xlabel = "Time",
+		xticks = (popticks,string.(popticks)),
+		xlim=(time[1],time[end]),
+		framestyle = :zerolines,
+    	)
+	#plot Prevalence
+	prevmax = ceil(Integer,maximum(prevalence)*100)/100
+	prevmin = floor(Integer,minimum(prevalence)*100)/100
+	prevticks = eventicks(prevmax,5,prevmin)
+	plot!(twinx(),time,prevalence,
+		label = "", grid = false,
+		color = :orange,
+		ylabel = "Prevalence",
+		ylim = (prevmin,prevmax),
+		yticks = (
+				prevticks,
+				string.(round.(100 .* prevticks ,digits=2)).*"%"
+			),
+		ytickfontsize=ticksfontsize,
+		#tickfontcolor = :orange,
+		framestyle = :zerolines,
+		xticks = false,
+		showaxis = false,
+		xlim=(time[1],time[end])
+ 	   )
+	#plot mutation load
+	maxload = ceil(Integer,maximum(mutationload))
+	minload = floor(Integer,minimum(mutationload))
+	loadticks = eventicks(maxload,5,minload)
+	plot!(twinx(),time,mutationload,
+		label="",grid = false,
+		color=:red,
+		ymirror = false,
+		ylabel = "Mutation Load",
+		ylim = (minload,maxload),
+		yticks = loadticks,
+		#tickfontcolor = :red,
+		ytickfontsize=ticksfontsize,
+		xticks = false,
+		framestyle = :zerolines,
+		showaxis = false,
+		xlim=(time[1],time[end])
+ 	   )
+	vline!([time[end]],linewidth=1,color=:black,label="")
+	!iszero(time[1]) && vline!([time[1]],linewidth=1,color=:black,label="")
+	return p
+end
+
+function plotmutationloadandprevalence(
+	popsize,prevalence,mutationload,legend,label1,label2,
+	prevmax, maxload,rm,lm,title,
+	time=0:(length(popsize)-1)
+	)
+	#setting values
+	ticksfontsize = 7#5
+
+	#setup plot
+	p = plot(size = (600,300),
+			rightmargin = rm,#20mm,
+			leftmargin = lm,#15mm,
+			#topmargin = 5mm,
+			bottommargin = 5mm,
+			title = title,
+			titlefontsize = 15,
+			titleposition=:center,
+			xtickfontsize=ticksfontsize,
+			legend = :topleft,
+			)
+	#plot population size in background
+	popticks = floor.(Int,PlotFromDicts.eventicks(time[end],2))
 	plot!(p,time,popsize,
 		grid = false, label = "",
 		color = Gray(0.2), alpha = 0.7,
@@ -96,33 +171,34 @@ function plotmutationloadandprevalence(popsize,prevalence,mutationload,time=0:(l
 		framestyle = :zerolines,
     	)
 	#plot Prevalence
-	prevmax = ceil(Integer,maximum(prevalence)*100)/100
-	prevticks = eventicks(prevmax,5)
+	prevticks = PlotFromDicts.eventicks(prevmax,5)
 	plot!(twinx(),prevalence,
-		label = "", grid = false,
+		label = legend ? "Prevalence" : "",
+		grid = false,
 		color = :orange,
-		ylabel = "Prevalence",
-		#ylim = (0,prevmax*1.01),
-		yticks = (
+		ylabel = label2 ? "Prevalence" : "",
+		ylim = (0,prevmax*1.01),
+		#ylim = (0,0.60),
+		yticks = label2 ? (
 				prevticks,
 				string.(round.(100 .* prevticks ,digits=2)).*"%"
-			),
+			) : false,
 		ytickfontsize=ticksfontsize,
 		#tickfontcolor = :orange,
 		framestyle = :zerolines,
 		xticks = false,
-		showaxis = false
+		showaxis = false,
  	   )
 	#plot mutation load
-	maxload = ceil(Integer,maximum(mutationload))
-	loadticks = eventicks(maxload,5)
+	loadticks = PlotFromDicts.eventicks(maxload,5)
 	plot!(twinx(),mutationload,
-		label="",grid = false,
+		label=legend ? "Mutation Load" : "",
+		grid = false,
 		color=:red,
 		ymirror = false,
-		ylabel = "Mutation Load",
-		#ylim = (0,maxload),
-		yticks = loadticks,
+		ylabel = label1 ? "Mutation Load" : "",
+		ylim = (0,maxload),
+		yticks = label1 ? loadticks : false,
 		#tickfontcolor = :red,
 		ytickfontsize=ticksfontsize,
 		xticks = false,
@@ -187,6 +263,10 @@ end
 """
 Generates the Mutation Load and Prevalence Plot.
 """
+plot_MLP(history,tend;tstart=1) = plotmutationloadandprevalence(
+                history["PopSize"][tstart:tend],
+                replace_NaN(history["Ill"] ./ history["PopSize"])[tstart:tend],
+                replace_NaN(history["ML"] ./ history["PopSize"])[tstart:tend],tstart:tend)
 plot_MLP(history) = plotmutationloadandprevalence(
                 history["PopSize"],
                 replace_NaN(history["Ill"] ./ history["PopSize"]),
@@ -195,7 +275,8 @@ plot_MLP(df::DataFrame) = plotmutationloadandprevalence(
                 df.PopSize,
                 replace_NaN(df.Ill ./ df.PopSize),
                 replace_NaN(df.Mutation ./ df.PopSize))
-function plot_MLP(history,abs_path)
+
+function plot_MLP(history,abs_path::String)
 	p = plot_MLP(history)
 	savefig(p,abs_path)
 end
@@ -238,6 +319,23 @@ function gif_MLP_LoadHist(history,abs_path,tend;everyn=100,maxfreq=0.25)
 	gif(anim, abs_path)
 end
 
+function plot_MutPos(mutpos,t,popsize,ylim,xlim;orientation=:v)
+	if orientation == :h
+		xlim,ylim = ylim,xlim
+		xlabel, ylabel = "Frequency", "Loci"
+	else
+		xlabel, ylabel = "Loci", "Frequency"
+	end
+	p = plot(
+		ylim=ylim,xlim=xlim,
+		legend=false,
+		xlabel=xlabel,ylabel=ylabel,
+		)
+	plot_LoadPos!(p,mutpos["Single"][t],popsize,:orange,1,orientation)
+	plot_LoadPos!(p,mutpos["Double"][t],popsize,:red,-1,orientation)
+	return p
+end
+
 function plot_LoadPos(loadpos,t,popsize,ylim,xlim;key="both",orientation=:v)
 	if key == "both"
 		h = loadpos["Ill"][t] .+ loadpos["Healthy"][t]
@@ -277,6 +375,16 @@ function plot_LoadPos!(p,h::Vector{SparseVector{S,T}},ps,c,orientation) where {S
 	plot_LoadPos!(p,h[2],ps,c,-1,orientation)
 end
 
+function plot_LoadPos(h::Vector{Vector{T}},N = length(h)) where {T<:Number}
+	b = bar([h[i][1] for i ∈ 1:N],
+		xlim=(-1,1),ylim=(0,N+1),orientation=:h,
+		label="",color=:blue
+		)
+	bar!(b,[-h[i][2] for i ∈ 1:N],orientation=:h,label="",color=:blue)
+
+	return b
+end
+
 function gif_MLP_LoadPos(history,abs_path,tend;everyn=100,maxfreq=0.5)
 	anim = @animate for t in 1:tend
 	    p1 = plot_MLP(history.mlp)
@@ -303,6 +411,40 @@ function gif_MLP_LoadPos_LoadHis(history,abs_path,tend;everyn=100,maxfreqhis=0.2
 		    t,
 		    history.mlp["PopSize"][t],
 		    (-maxfreqpos, maxfreqpos),
+		    (0, history.par.Nloci+1),
+		    orientation = :h,
+		)
+		his = plot_MLHist(
+		    history.loadhist,
+		    t,
+		    history.mlp["PopSize"][t],
+		    maxfreqhis,maxmut,
+		    )
+		mlp = plot_MLP(history.mlp)
+		vline!([t],label="")
+
+		l = @layout [[a ; b] c{0.3w} ]
+
+		plot(
+			mlp,his,pos,
+			layout=l,
+			size=(800,400)
+			)
+	end every everyn
+
+	gif(anim, abs_path)
+end
+
+function gif_MLP_MutPos_LoadHis(history,abs_path,tend;everyn=100,maxfreqhis=0.25,maxfreqpos=(-0.1,0.5))
+
+	maxmut = maxmutatioins(history.loadhist)
+
+	anim = @animate for t in 1:tend
+		pos = plot_MutPos(
+		    history.mutpos,
+		    t,
+		    history.mlp["PopSize"][t],
+		    maxfreqpos,
 		    (0, history.par.Nloci+1),
 		    orientation = :h,
 		)

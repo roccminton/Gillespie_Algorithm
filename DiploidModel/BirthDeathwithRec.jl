@@ -1,3 +1,6 @@
+using Distributions
+using SparseArrays
+using Random
 
 function DiploidModel2.setupparameter(par,n0,historylength)
     #chromosome cuts of no interest for full recombination, because genes are independent in that case
@@ -106,10 +109,14 @@ end
 """
 function initcuts(par)
     if par.recombination == 1
-        return [i:i for i in 1:par.Nloci]
+        return fullreccuts(par)
+    elseif par.recombination == 0
+        return noreccuts(par)
     else
-        cutsat = sort!(sample(1:par.Nloci-1,rand(Poisson(par.recombination*par.Nloci)),replace=false))
-        isempty(cutsat) && return [1:par.Nloci]
+        ncuts = rand(Poisson(par.recombination*par.Nloci))
+        ncuts ≥ par.Nloci - 1 && return fullreccuts(par)
+        iszero(ncuts) && return noreccuts(par)
+        cutsat = sort!(sample(1:par.Nloci-1,ncuts,replace=false))
         ccuts = [1:cutsat[1]]
         for i in 2:length(cutsat)
             push!(ccuts,cutsat[i-1]+1:cutsat[i])
@@ -118,3 +125,6 @@ function initcuts(par)
         return ccuts
     end
 end
+
+fullreccuts(par) = [i:i for i in 1:par.Nloci]
+noreccuts(par) = [1:par.Nloci]

@@ -14,7 +14,7 @@ is a Vector{PopulationState} of length `length(time)` with the history of the
 states of the population during the simulation.
 """
 
-function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,population_history;hstart=0,statistic! = saveonestep!) where {F1,F2,F3}
+function run_gillespie!(time,n₀,par,execute!::F1,rates!::F2,initrates,population_history;hstart=0,statistic!::F3 = saveonestep!) where {F1,F2,F3}
 
     mainiteration!(
         population_history,
